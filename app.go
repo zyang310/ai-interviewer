@@ -18,7 +18,6 @@ import (
 // Not exported — lives only in the Go process while a session is active.
 type activeSession struct {
 	session models.Session
-	problem models.Problem
 	history []ai.ChatMessage
 }
 
@@ -45,15 +44,27 @@ func NewApp() (*App, error) {
 		capturer: capture.NewCapturer(),
 	}
 
-	// Restore AI client from persisted key.
-	key, err := db.GetAPIKey("openrouter")
-	if err != nil {
+	// Restore the AI client from the persisted OpenRouter key (if any).
+	if key, err := db.GetAPIKey("openrouter"); err != nil {
 		log.Printf("warning: could not read OpenRouter key: %v", err)
 	} else if key != "" {
 		app.aiClient = ai.NewClient(key)
 	}
 
+	// Restore the saved capture region so on-demand captures honour it too.
+	app.applySavedRegion()
+
 	return app, nil
+}
+
+// applySavedRegion loads the persisted capture display/region and applies it to
+// the capturer. Best-effort: falls back to full primary display on any error.
+func (a *App) applySavedRegion() {
+	prefs, err := a.db.GetPreferences()
+	if err != nil {
+		return
+	}
+	a.capturer.SetRegion(prefs.CaptureDisplay, prefs.RegionX, prefs.RegionY, prefs.RegionW, prefs.RegionH)
 }
 
 // startup is called by Wails when the application is ready.
@@ -87,10 +98,10 @@ func (a *App) SetAPIKey(provider, key string) error {
 
 // GetAuthStatus reports which API providers currently have keys configured.
 func (a *App) GetAuthStatus() models.AuthStatus {
-	orKey, _ := a.db.GetAPIKey("openrouter")
+	dbKey, _ := a.db.GetAPIKey("openrouter")
 	elKey, _ := a.db.GetAPIKey("elevenlabs")
 	return models.AuthStatus{
-		OpenRouterConfigured: orKey != "",
+		OpenRouterConfigured: dbKey != "",
 		ElevenLabsConfigured: elKey != "",
 	}
 }
@@ -99,40 +110,35 @@ func (a *App) GetAuthStatus() models.AuthStatus {
 // Interview session
 // ---------------------------------------------------------------------------
 
-// StartSession creates a new interview session, initialises the conversation
-// history with the system prompt, and starts screen capture.
-func (a *App) StartSession(problemID string, model string) (models.Session, error) {
+// StartSession creates a new screen-driven interview session, initialises the
+// conversation history with the system prompt, and starts screen capture. There
+// is no problem to select — the AI reads the task from the captured screen.
+func (a *App) StartSession(model string) (models.Session, error) {
 	if a.active != nil {
 		return models.Session{}, fmt.Errorf("a session is already active — end it first")
 	}
 
-	problem, err := a.GetProblem(problemID)
-	if err != nil {
-		return models.Session{}, err
-	}
-
+	prefs, _ := a.db.GetPreferences()
 	if model == "" {
-		prefs, _ := a.db.GetPreferences()
 		model = prefs.Model
 	}
 
 	id := uuid.New().String()
-	session, err := a.db.CreateSession(id, problemID, model)
+	// problem_id is unused in the screen-driven flow; "" satisfies NOT NULL.
+	session, err := a.db.CreateSession(id, "", model)
 	if err != nil {
 		return models.Session{}, err
 	}
 
-	systemPrompt := ai.BuildSystemPrompt(problem)
 	a.active = &activeSession{
 		session: session,
-		problem: problem,
 		history: []ai.ChatMessage{
-			{Role: "system", Content: systemPrompt},
+			{Role: "system", Content: ai.BuildSystemPrompt()},
 		},
 	}
 
-	// Auto-start screen capture.
-	prefs, _ := a.db.GetPreferences()
+	// Apply the saved region, then auto-start screen capture.
+	a.capturer.SetRegion(prefs.CaptureDisplay, prefs.RegionX, prefs.RegionY, prefs.RegionW, prefs.RegionH)
 	a.capturer.Start(a.ctx, prefs.CaptureIntervalMs)
 
 	return session, nil
@@ -158,6 +164,15 @@ func (a *App) SendMessage(text string) (string, error) {
 	}
 	if a.aiClient == nil {
 		return "", fmt.Errorf("OpenRouter API key not configured — add it in Settings")
+	}
+
+	// Backend enforcement of the session time limit (the frontend also enforces
+	// this, so this is a backstop for edge cases like clock skew).
+	prefs, _ := a.db.GetPreferences()
+	if prefs.SessionLimitMinutes > 0 {
+		if time.Since(a.active.session.StartedAt) >= time.Duration(prefs.SessionLimitMinutes)*time.Minute {
+			return "", fmt.Errorf("session time limit reached — end the interview and start a new one")
+		}
 	}
 
 	// 1. Grab the latest screenshot (may be empty on first call).
@@ -231,23 +246,31 @@ func (a *App) GetLatestScreenshot() (string, error) {
 	return s, nil
 }
 
-// ---------------------------------------------------------------------------
-// Problems
-// ---------------------------------------------------------------------------
-
-// ListProblems returns all available interview problems.
-// Phase 1: returns a single hardcoded problem.
-func (a *App) ListProblems() []models.Problem {
-	return []models.Problem{getHardcodedProblem()}
+// ListDisplays enumerates the active displays for the region picker.
+func (a *App) ListDisplays() []capture.DisplayInfo {
+	return capture.ListDisplays()
 }
 
-// GetProblem returns a problem by ID.
-func (a *App) GetProblem(id string) (models.Problem, error) {
-	p := getHardcodedProblem()
-	if id == p.ID {
-		return p, nil
+// SnapshotDisplay returns a full (uncropped) screenshot of the given display as
+// a base64 PNG. Used by the region selector so the user can draw a rectangle.
+func (a *App) SnapshotDisplay(displayIndex int) (string, error) {
+	return capture.SnapshotDisplay(displayIndex)
+}
+
+// SetCaptureRegion persists the chosen display and sub-region (fractions 0..1 of
+// the display; a zero width means full display) and applies it to the capturer.
+func (a *App) SetCaptureRegion(displayIndex int, x, y, w, h float64) error {
+	prefs, err := a.db.GetPreferences()
+	if err != nil {
+		return err
 	}
-	return models.Problem{}, fmt.Errorf("problem %q not found", id)
+	prefs.CaptureDisplay = displayIndex
+	prefs.RegionX, prefs.RegionY, prefs.RegionW, prefs.RegionH = x, y, w, h
+	if err := a.db.SavePreferences(prefs); err != nil {
+		return err
+	}
+	a.capturer.SetRegion(displayIndex, x, y, w, h)
+	return nil
 }
 
 // ---------------------------------------------------------------------------
@@ -275,38 +298,10 @@ func (a *App) GetPreferences() (models.Preferences, error) {
 
 // UpdatePreferences persists updated settings.
 func (a *App) UpdatePreferences(prefs models.Preferences) error {
-	return a.db.SavePreferences(prefs)
-}
-
-// ---------------------------------------------------------------------------
-// Hardcoded problem (Phase 1)
-// ---------------------------------------------------------------------------
-
-func getHardcodedProblem() models.Problem {
-	return models.Problem{
-		ID:         "two-sum",
-		Title:      "Two Sum",
-		Difficulty: "easy",
-		Description: `Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.
-
-You may assume that each input would have exactly one solution, and you may not use the same element twice.
-
-You can return the answer in any order.`,
-		Examples: `Example 1:
-  Input: nums = [2,7,11,15], target = 9
-  Output: [0,1]
-  Explanation: Because nums[0] + nums[1] == 9, we return [0, 1].
-
-Example 2:
-  Input: nums = [3,2,4], target = 6
-  Output: [1,2]
-
-Example 3:
-  Input: nums = [3,3], target = 6
-  Output: [0,1]`,
-		Constraints: `2 <= nums.length <= 10^4
--10^9 <= nums[i] <= 10^9
--10^9 <= target <= 10^9
-Only one valid answer exists.`,
+	if err := a.db.SavePreferences(prefs); err != nil {
+		return err
 	}
+	// Keep the capturer in sync with any region/display change.
+	a.capturer.SetRegion(prefs.CaptureDisplay, prefs.RegionX, prefs.RegionY, prefs.RegionW, prefs.RegionH)
+	return nil
 }

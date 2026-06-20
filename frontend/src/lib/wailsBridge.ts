@@ -6,16 +6,17 @@ export {
   GetAuthStatus,
   GetLatestScreenshot,
   GetPreferences,
-  GetProblem,
   GetSessionTranscript,
-  ListProblems,
+  ListDisplays,
   ListSessions,
   SendMessage,
   SetAPIKey,
+  SetCaptureRegion,
+  SnapshotDisplay,
   StartCapture,
   StartSession,
   StopCapture,
   UpdatePreferences,
 } from "../../wailsjs/go/main/App";
 
-export { models } from "../../wailsjs/go/models";
+export { models, capture } from "../../wailsjs/go/models";

@@ -1,0 +1,383 @@
+/* ── Root ──────────────────────────────────────────────────────────── */
+.setup-root {
+  position: fixed;
+  inset: 0;
+  background-color: #0f1115;
+  color: #e2e2e8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Geist', -apple-system, BlinkMacSystemFont, sans-serif;
+  overflow: hidden;
+  z-index: 200;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Infinite scrolling grid ───────────────────────────────────────── */
+.setup-bg-grid {
+  position: absolute;
+  inset: 0;
+  background-size: 40px 40px;
+  background-image:
+    linear-gradient(to right,  rgba(255,255,255,0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255,255,255,0.05) 1px, transparent 1px);
+  pointer-events: none;
+  z-index: 0;
+  /* Endlessly shifts one tile diagonally to fake an infinite scroll. */
+  animation: setup-grid-scroll 2.6s linear infinite;
+}
+
+@keyframes setup-grid-scroll {
+  to { background-position: 40px 40px; }
+}
+
+/* Brighter grid that is only visible through a circular mask under the cursor. */
+.setup-bg-grid--reveal {
+  background-image:
+    linear-gradient(to right,  rgba(173,198,255,0.35) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(173,198,255,0.35) 1px, transparent 1px);
+  -webkit-mask-image: radial-gradient(
+    280px circle at var(--setup-mx, 50%) var(--setup-my, 50%),
+    #000 0%,
+    transparent 70%
+  );
+  mask-image: radial-gradient(
+    280px circle at var(--setup-mx, 50%) var(--setup-my, 50%),
+    #000 0%,
+    transparent 70%
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .setup-bg-grid {
+    animation: none;
+  }
+}
+
+/* ── Decorative blur spheres ───────────────────────────────────────── */
+.setup-spheres {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.setup-sphere {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(120px);
+}
+
+.setup-sphere--1 {
+  right: -15%;
+  top: -15%;
+  width: 42%;
+  height: 42%;
+  background: rgba(173, 198, 255, 0.10);
+}
+
+.setup-sphere--2 {
+  left: -15%;
+  bottom: -20%;
+  width: 42%;
+  height: 42%;
+  background: rgba(192, 193, 255, 0.08);
+}
+
+/* ── Ambient glow behind card ──────────────────────────────────────── */
+.setup-ambient-glow {
+  position: absolute;
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(173,198,255,0.05) 0%, transparent 70%);
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* ── Glass card ────────────────────────────────────────────────────── */
+.setup-card {
+  position: relative;
+  z-index: 10;
+  width: 100%;
+  max-width: 560px;
+  padding: 64px;
+  background: rgba(26, 29, 35, 0.6);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid #2e333d;
+  border-radius: 8px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  display: flex;
+  flex-direction: column;
+  margin: 0 32px;
+  transition: box-shadow 0.5s ease;
+}
+
+.setup-card--success {
+  box-shadow: 0 0 40px rgba(78,222,163,0.15), 0 20px 60px rgba(0,0,0,0.5);
+}
+
+/* ── Header ────────────────────────────────────────────────────────── */
+.setup-header {
+  margin-bottom: 64px;
+  text-align: center;
+}
+
+.setup-icon-ring {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 12px;
+  background-color: #333539;
+  border: 1px solid #424754;
+  margin-bottom: 24px;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.4);
+}
+
+.setup-icon-ring .material-symbols-outlined {
+  color: #adc6ff;
+  font-size: 30px;
+}
+
+.setup-title {
+  font-size: 32px;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  font-weight: 600;
+  color: #e2e2e8;
+  margin: 0 0 8px;
+}
+
+.setup-subtitle {
+  font-size: 16px;
+  line-height: 1.6;
+  color: #c2c6d6;
+  margin: 0;
+}
+
+/* ── Form ──────────────────────────────────────────────────────────── */
+.setup-form {
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+}
+
+/* ── Field ─────────────────────────────────────────────────────────── */
+.setup-field {
+  position: relative;
+}
+
+.setup-field:focus-within .setup-label {
+  color: #adc6ff;
+}
+
+.setup-label {
+  display: block;
+  font-size: 12px;
+  line-height: 1.2;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #c2c6d6;
+  margin-bottom: 4px;
+  transition: color 0.2s;
+}
+
+.setup-input-wrap {
+  position: relative;
+}
+
+.setup-input {
+  width: 100%;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid #424754;
+  padding: 8px 40px 8px 0;
+  font-family: 'JetBrains Mono', 'Courier New', monospace;
+  font-size: 14px;
+  line-height: 1.7;
+  color: #e2e2e8;
+  outline: none;
+  transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+.setup-input::placeholder {
+  color: #8c909f;
+}
+
+.setup-input:focus {
+  border-color: #adc6ff;
+  box-shadow: 0 2px 0 0 rgba(173,198,255,0.4);
+}
+
+.setup-vis-btn {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  padding: 0;
+  color: #8c909f;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  transition: color 0.2s;
+}
+
+.setup-vis-btn:hover {
+  color: #e2e2e8;
+}
+
+.setup-vis-btn .material-symbols-outlined {
+  font-size: 20px;
+}
+
+/* "Already configured" hint under a field */
+.setup-configured-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: #4edea3;
+}
+
+.setup-configured-hint .material-symbols-outlined {
+  font-size: 14px;
+}
+
+/* ── Actions ───────────────────────────────────────────────────────── */
+.setup-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+/* Check connectivity button */
+.setup-check-btn {
+  width: 100%;
+  padding: 16px 24px;
+  border-radius: 2px;
+  border: 1px solid #424754;
+  background: transparent;
+  font-family: 'Geist', sans-serif;
+  font-size: 12px;
+  line-height: 1.2;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #e2e2e8;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: background-color 0.3s, border-color 0.3s, opacity 0.2s;
+}
+
+.setup-check-btn:hover:not(:disabled) {
+  background-color: #333539;
+  border-color: #8c909f;
+}
+
+.setup-check-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.setup-check-btn.is-success {
+  border-color: #4edea3;
+  background-color: rgba(78,222,163,0.1);
+}
+
+.setup-check-btn .material-symbols-outlined {
+  font-size: 18px;
+  transition: color 0.2s;
+}
+
+.setup-check-btn.is-success .material-symbols-outlined {
+  color: #4edea3;
+}
+
+.setup-check-btn.is-error .material-symbols-outlined {
+  color: #ffb4ab;
+}
+
+/* Continue button */
+.setup-continue-btn {
+  width: 100%;
+  padding: 16px 24px;
+  border-radius: 2px;
+  border: none;
+  background-color: #adc6ff;
+  font-family: 'Geist', sans-serif;
+  font-size: 12px;
+  line-height: 1.2;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #002e6a;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-shadow: 0 0 15px rgba(173,198,255,0.15);
+  transition: filter 0.3s, opacity 0.3s, box-shadow 0.3s;
+}
+
+.setup-continue-btn:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+.setup-continue-btn:disabled {
+  opacity: 0.3;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+.setup-continue-btn .material-symbols-outlined {
+  font-size: 18px;
+}
+
+/* ── Footer ────────────────────────────────────────────────────────── */
+.setup-footer {
+  margin-top: 40px;
+  padding-top: 24px;
+  border-top: 1px solid rgba(66,71,84,0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.setup-footer .material-symbols-outlined {
+  font-size: 16px;
+  color: #c2c6d6;
+}
+
+.setup-footer-text {
+  font-size: 14px;
+  line-height: 1.5;
+  color: #c2c6d6;
+  margin: 0;
+}
+
+/* ── Spinner animation ─────────────────────────────────────────────── */
+@keyframes setup-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.spin {
+  display: inline-block;
+  animation: setup-spin 1s linear infinite;
+}

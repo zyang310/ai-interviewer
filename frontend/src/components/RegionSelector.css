@@ -1,0 +1,137 @@
+.region-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 110;
+}
+
+.region-panel {
+  background-color: #1e2d3d;
+  border: 1px solid #2a3a4a;
+  border-radius: 12px;
+  padding: 20px;
+  width: 760px;
+  max-width: 94vw;
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.region-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.region-header h2 {
+  font-size: 18px;
+  font-weight: 700;
+  color: #f0f0f0;
+  margin: 0;
+}
+
+.region-close {
+  background: none;
+  border: none;
+  color: #8899aa;
+  font-size: 24px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.region-close:hover {
+  color: #f0f0f0;
+}
+
+.region-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.region-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #ccd;
+}
+
+.region-select {
+  padding: 6px 10px;
+  border: 1px solid #2a3a4a;
+  border-radius: 6px;
+  background-color: #162230;
+  color: #e0e0e0;
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+}
+
+.region-select:focus {
+  border-color: #3a6090;
+}
+
+.region-hint {
+  font-size: 12px;
+  color: #667;
+  margin: 0;
+}
+
+.region-canvas {
+  position: relative;
+  flex: 1;
+  min-height: 240px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #0e1620;
+  border: 1px solid #2a3a4a;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: crosshair;
+  user-select: none;
+  touch-action: none;
+}
+
+.region-image {
+  display: block;
+  max-width: 100%;
+  max-height: 60vh;
+  pointer-events: none;
+}
+
+.region-status {
+  color: #8899aa;
+  font-size: 14px;
+  padding: 60px 0;
+}
+
+.region-box {
+  position: absolute;
+  border: 2px solid #5b9bd5;
+  background-color: rgba(91, 155, 213, 0.18);
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+
+.region-error {
+  color: #f87171;
+  font-size: 13px;
+  margin: 10px 0 0;
+}
+
+.region-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 16px;
+}

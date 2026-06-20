@@ -1,3 +1,30 @@
+export namespace capture {
+	
+	export class DisplayInfo {
+	    index: number;
+	    x: number;
+	    y: number;
+	    width: number;
+	    height: number;
+	    label: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DisplayInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.index = source["index"];
+	        this.x = source["x"];
+	        this.y = source["y"];
+	        this.width = source["width"];
+	        this.height = source["height"];
+	        this.label = source["label"];
+	    }
+	}
+
+}
+
 export namespace models {
 	
 	export class AuthStatus {
@@ -59,6 +86,13 @@ export namespace models {
 	    captureIntervalMs: number;
 	    model: string;
 	    voiceId: string;
+	    captureDisplay: number;
+	    regionX: number;
+	    regionY: number;
+	    regionW: number;
+	    regionH: number;
+	    sessionLimitMinutes: number;
+	    softWarningMinutes: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new Preferences(source);
@@ -69,28 +103,13 @@ export namespace models {
 	        this.captureIntervalMs = source["captureIntervalMs"];
 	        this.model = source["model"];
 	        this.voiceId = source["voiceId"];
-	    }
-	}
-	export class Problem {
-	    id: string;
-	    title: string;
-	    difficulty: string;
-	    description: string;
-	    examples: string;
-	    constraints: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new Problem(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.id = source["id"];
-	        this.title = source["title"];
-	        this.difficulty = source["difficulty"];
-	        this.description = source["description"];
-	        this.examples = source["examples"];
-	        this.constraints = source["constraints"];
+	        this.captureDisplay = source["captureDisplay"];
+	        this.regionX = source["regionX"];
+	        this.regionY = source["regionY"];
+	        this.regionW = source["regionW"];
+	        this.regionH = source["regionH"];
+	        this.sessionLimitMinutes = source["sessionLimitMinutes"];
+	        this.softWarningMinutes = source["softWarningMinutes"];
 	    }
 	}
 	export class Session {

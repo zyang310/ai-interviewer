@@ -10,11 +10,18 @@ import (
 )
 
 const (
-	keyOpenRouterAPIKey  = "openrouter_api_key"
-	keyElevenLabsAPIKey  = "elevenlabs_api_key"
-	keyCaptureIntervalMs = "capture_interval_ms"
-	keyModel             = "model"
-	keyVoiceID           = "voice_id"
+	keyOpenRouterAPIKey    = "openrouter_api_key"
+	keyElevenLabsAPIKey    = "elevenlabs_api_key"
+	keyCaptureIntervalMs   = "capture_interval_ms"
+	keyModel               = "model"
+	keyVoiceID             = "voice_id"
+	keyCaptureDisplay      = "capture_display"
+	keyRegionX             = "region_x"
+	keyRegionY             = "region_y"
+	keyRegionW             = "region_w"
+	keyRegionH             = "region_h"
+	keySessionLimitMinutes = "session_limit_minutes"
+	keySoftWarningMinutes  = "soft_warning_minutes"
 )
 
 // GetAPIKey retrieves a stored API key. provider is "openrouter" or "elevenlabs".
@@ -42,8 +49,10 @@ func (db *DB) SetAPIKey(provider, value string) error {
 // GetPreferences returns all user preferences, using defaults for missing keys.
 func (db *DB) GetPreferences() (models.Preferences, error) {
 	p := models.Preferences{
-		CaptureIntervalMs: 3000,
-		Model:             "anthropic/claude-sonnet-4",
+		CaptureIntervalMs:   3000,
+		Model:               "anthropic/claude-sonnet-4",
+		SessionLimitMinutes: 30,
+		SoftWarningMinutes:  25,
 	}
 
 	if v, err := db.getPref(keyCaptureIntervalMs); err == nil && v != "" {
@@ -57,6 +66,41 @@ func (db *DB) GetPreferences() (models.Preferences, error) {
 	if v, err := db.getPref(keyVoiceID); err == nil {
 		p.VoiceID = v
 	}
+	if v, err := db.getPref(keyCaptureDisplay); err == nil && v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			p.CaptureDisplay = n
+		}
+	}
+	if v, err := db.getPref(keyRegionX); err == nil && v != "" {
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			p.RegionX = f
+		}
+	}
+	if v, err := db.getPref(keyRegionY); err == nil && v != "" {
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			p.RegionY = f
+		}
+	}
+	if v, err := db.getPref(keyRegionW); err == nil && v != "" {
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			p.RegionW = f
+		}
+	}
+	if v, err := db.getPref(keyRegionH); err == nil && v != "" {
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			p.RegionH = f
+		}
+	}
+	if v, err := db.getPref(keySessionLimitMinutes); err == nil && v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			p.SessionLimitMinutes = n
+		}
+	}
+	if v, err := db.getPref(keySoftWarningMinutes); err == nil && v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			p.SoftWarningMinutes = n
+		}
+	}
 	return p, nil
 }
 
@@ -68,7 +112,28 @@ func (db *DB) SavePreferences(p models.Preferences) error {
 	if err := db.setPref(keyModel, p.Model); err != nil {
 		return err
 	}
-	return db.setPref(keyVoiceID, p.VoiceID)
+	if err := db.setPref(keyVoiceID, p.VoiceID); err != nil {
+		return err
+	}
+	if err := db.setPref(keyCaptureDisplay, strconv.Itoa(p.CaptureDisplay)); err != nil {
+		return err
+	}
+	if err := db.setPref(keyRegionX, strconv.FormatFloat(p.RegionX, 'f', -1, 64)); err != nil {
+		return err
+	}
+	if err := db.setPref(keyRegionY, strconv.FormatFloat(p.RegionY, 'f', -1, 64)); err != nil {
+		return err
+	}
+	if err := db.setPref(keyRegionW, strconv.FormatFloat(p.RegionW, 'f', -1, 64)); err != nil {
+		return err
+	}
+	if err := db.setPref(keyRegionH, strconv.FormatFloat(p.RegionH, 'f', -1, 64)); err != nil {
+		return err
+	}
+	if err := db.setPref(keySessionLimitMinutes, strconv.Itoa(p.SessionLimitMinutes)); err != nil {
+		return err
+	}
+	return db.setPref(keySoftWarningMinutes, strconv.Itoa(p.SoftWarningMinutes))
 }
 
 // getPref fetches a single preference value by key. Returns "" if not found.

@@ -41,4 +41,16 @@ type Preferences struct {
 	CaptureIntervalMs int    `json:"captureIntervalMs"` // default 3000
 	Model             string `json:"model"`              // default "anthropic/claude-sonnet-4"
 	VoiceID           string `json:"voiceId"`
+
+	// Capture region. Coordinates are fractions (0..1) of the chosen display;
+	// a zero RegionW means "capture the full display".
+	CaptureDisplay int     `json:"captureDisplay"` // display index, default 0
+	RegionX        float64 `json:"regionX"`
+	RegionY        float64 `json:"regionY"`
+	RegionW        float64 `json:"regionW"`
+	RegionH        float64 `json:"regionH"`
+
+	// Session timer. 0 means no limit / no warning.
+	SessionLimitMinutes int `json:"sessionLimitMinutes"` // default 30
+	SoftWarningMinutes  int `json:"softWarningMinutes"`  // default 25
 }

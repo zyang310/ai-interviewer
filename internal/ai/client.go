@@ -7,13 +7,14 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 )
 
 const (
-	openRouterURL   = "https://openrouter.ai/api/v1/chat/completions"
-	maxHistoryMsgs  = 20 // keep last 20 messages (10 exchanges) to limit cost/latency
-	httpTimeout     = 60 * time.Second
+	openRouterURL  = "https://openrouter.ai/api/v1/chat/completions"
+	MaxHistoryMsgs = 20 // keep last 20 messages (10 exchanges) to limit cost/latency
+	httpTimeout    = 60 * time.Second
 )
 
 // ChatMessage is a single message in the OpenRouter request format.
@@ -53,14 +54,13 @@ func NewClient(apiKey string) *Client {
 
 // Complete sends the conversation history to OpenRouter and returns the
 // assistant's response text. The system prompt must be the first element of
-// messages. History is trimmed to the last maxHistoryMsgs messages (excluding
-// the system prompt) before sending.
+// messages. Past screenshots are stripped and history is trimmed before sending.
 func (c *Client) Complete(ctx context.Context, model string, messages []ChatMessage) (string, error) {
 	if c.apiKey == "" {
 		return "", fmt.Errorf("ai: OpenRouter API key is not configured")
 	}
 
-	trimmed := trimHistory(messages)
+	trimmed := trimHistory(stripPastImages(messages))
 
 	payload := map[string]any{
 		"model":    model,
@@ -119,7 +119,46 @@ func (c *Client) Complete(ctx context.Context, model string, messages []ChatMess
 	return result.Choices[0].Message.Content, nil
 }
 
-// trimHistory keeps the system prompt (index 0) and the last maxHistoryMsgs
+// stripPastImages returns a new message slice where every user message except the
+// last one has its image_url content parts removed and is collapsed to plain
+// string content. The last user message keeps its screenshot so the model sees
+// the candidate's current screen. The original slice is never mutated.
+func stripPastImages(messages []ChatMessage) []ChatMessage {
+	if len(messages) == 0 {
+		return messages
+	}
+
+	lastUserIdx := -1
+	for i := len(messages) - 1; i >= 0; i-- {
+		if messages[i].Role == "user" {
+			lastUserIdx = i
+			break
+		}
+	}
+
+	result := make([]ChatMessage, len(messages))
+	for i, msg := range messages {
+		if msg.Role != "user" || i == lastUserIdx {
+			result[i] = msg
+			continue
+		}
+		parts, ok := msg.Content.([]ContentPart)
+		if !ok {
+			result[i] = msg
+			continue
+		}
+		var texts []string
+		for _, p := range parts {
+			if p.Type == "text" {
+				texts = append(texts, p.Text)
+			}
+		}
+		result[i] = ChatMessage{Role: "user", Content: strings.Join(texts, " ")}
+	}
+	return result
+}
+
+// trimHistory keeps the system prompt (index 0) and the last MaxHistoryMsgs
 // non-system messages, so the context window stays bounded.
 func trimHistory(messages []ChatMessage) []ChatMessage {
 	if len(messages) == 0 {
@@ -130,8 +169,8 @@ func trimHistory(messages []ChatMessage) []ChatMessage {
 	system := messages[0]
 	rest := messages[1:]
 
-	if len(rest) > maxHistoryMsgs {
-		rest = rest[len(rest)-maxHistoryMsgs:]
+	if len(rest) > MaxHistoryMsgs {
+		rest = rest[len(rest)-MaxHistoryMsgs:]
 	}
 
 	trimmed := make([]ChatMessage, 0, 1+len(rest))

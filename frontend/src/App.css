@@ -81,6 +81,37 @@
   border-color: #3a5a7a;
 }
 
+/* Session timer in header */
+.session-timer {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: #8899aa;
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: 4px;
+  background-color: #162230;
+  --wails-draggable: no-drag;
+}
+
+.session-timer.timer-warning {
+  color: #fbbf24;
+  background-color: #2a1a00;
+}
+
+.session-timer.timer-expired {
+  color: #f87171;
+  background-color: #2a0a0a;
+}
+
+/* Warning banner (soft time limit) */
+.app-warning {
+  padding: 8px 20px;
+  background-color: #3a2a0a;
+  color: #fbbf24;
+  font-size: 13px;
+  border-bottom: 1px solid #5a4010;
+}
+
 /* Error banner */
 .app-error {
   display: flex;
@@ -110,7 +141,7 @@
   min-height: 0; /* allow children to scroll */
 }
 
-.panel-problem {
+.panel-capture {
   width: 38%;
   min-width: 280px;
   border-right: 1px solid #2a3a4a;

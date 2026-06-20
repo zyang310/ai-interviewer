@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react";
 import Chat from "./components/Chat";
-import ProblemPanel from "./components/ProblemPanel";
+import CapturePanel from "./components/CapturePanel";
+import RegionSelector from "./components/RegionSelector";
 import Settings from "./components/Settings";
+import SetupPage from "./components/SetupPage";
 import {
   GetAuthStatus,
-  ListProblems,
+  GetPreferences,
   StartSession,
   EndSession,
   SendMessage,
@@ -17,29 +19,67 @@ interface ChatMessage {
   content: string;
 }
 
+function formatTime(sec: number): string {
+  const m = Math.floor(sec / 60).toString().padStart(2, "0");
+  const s = (sec % 60).toString().padStart(2, "0");
+  return `${m}:${s}`;
+}
+
 function App() {
   const [authStatus, setAuthStatus] = useState<models.AuthStatus>(
-    new models.AuthStatus({ openRouterConfigured: false, elevenLabsConfigured: false })
+    new models.AuthStatus({
+      openRouterConfigured: false,
+      elevenLabsConfigured: false,
+    })
   );
-  const [problem, setProblem] = useState<models.Problem | null>(null);
+  const [authLoaded, setAuthLoaded] = useState(false);
+  const [setupDone, setSetupDone] = useState(false);
+  const [prefs, setPrefs] = useState<models.Preferences | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [sessionStartedAt, setSessionStartedAt] = useState<Date | null>(null);
+  const [elapsedSec, setElapsedSec] = useState(0);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [regionOpen, setRegionOpen] = useState(false);
   const [error, setError] = useState("");
 
-  // On mount: load auth status and the default problem.
-  useEffect(() => {
-    GetAuthStatus()
-      .then(setAuthStatus)
-      .catch(() => {});
+  async function loadPrefs() {
+    try {
+      const p = await GetPreferences();
+      setPrefs(p);
+    } catch {
+      // Wails runtime not present in browser preview
+    }
+  }
 
-    ListProblems()
-      .then((problems) => {
-        if (problems.length > 0) setProblem(problems[0]);
-      })
-      .catch(() => {});
+  // On mount: load auth status and preferences.
+  useEffect(() => {
+    (async () => {
+      try {
+        const s = await GetAuthStatus();
+        setAuthStatus(s);
+      } catch {
+        // Wails runtime not present (browser preview) or key not set — show setup page.
+      } finally {
+        setAuthLoaded(true);
+      }
+    })();
+    loadPrefs();
   }, []);
+
+  // Tick the session timer every second while a session is active.
+  useEffect(() => {
+    if (!sessionStartedAt) {
+      setElapsedSec(0);
+      return;
+    }
+    const tick = () =>
+      setElapsedSec(Math.floor((Date.now() - sessionStartedAt.getTime()) / 1000));
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [sessionStartedAt]);
 
   // Auto-open settings if no API key is configured.
   useEffect(() => {
@@ -49,11 +89,11 @@ function App() {
   }, [authStatus.openRouterConfigured]);
 
   async function handleStart() {
-    if (!problem) return;
     setError("");
     try {
-      const session = await StartSession(problem.id, "");
+      const session = await StartSession("");
       setSessionId(session.id);
+      setSessionStartedAt(new Date(session.startedAt));
       setMessages([]);
     } catch (e: any) {
       setError(e?.message || String(e));
@@ -69,6 +109,7 @@ function App() {
       setError(e?.message || String(e));
     } finally {
       setSessionId(null);
+      setSessionStartedAt(null);
     }
   }
 
@@ -88,7 +129,23 @@ function App() {
     }
   }
 
+  // Always show the welcome/setup page first; "Continue to Hub" dismisses it.
+  if (!authLoaded) return null;
+  if (!setupDone) {
+    return (
+      <SetupPage
+        authStatus={authStatus}
+        onAuthChange={setAuthStatus}
+        onContinue={() => setSetupDone(true)}
+      />
+    );
+  }
+
   const isActive = sessionId !== null;
+  const limitSec = (prefs?.sessionLimitMinutes ?? 30) * 60;
+  const warnSec = (prefs?.softWarningMinutes ?? 25) * 60;
+  const timedOut = isActive && limitSec > 0 && elapsedSec >= limitSec;
+  const nearLimit = isActive && limitSec > 0 && warnSec > 0 && elapsedSec >= warnSec && !timedOut;
 
   return (
     <div className="app">
@@ -97,11 +154,18 @@ function App() {
         <h1 className="app-title">AI Interviewer</h1>
 
         <div className="header-controls">
+          {isActive && limitSec > 0 && (
+            <span
+              className={`session-timer${nearLimit ? " timer-warning" : ""}${timedOut ? " timer-expired" : ""}`}
+            >
+              {formatTime(elapsedSec)} / {formatTime(limitSec)}
+            </span>
+          )}
           {!isActive ? (
             <button
               className="btn btn-primary"
               onClick={handleStart}
-              disabled={!authStatus.openRouterConfigured || !problem}
+              disabled={!authStatus.openRouterConfigured}
             >
               Start Interview
             </button>
@@ -120,6 +184,20 @@ function App() {
         </div>
       </header>
 
+      {/* Warning banner (approaching time limit) */}
+      {nearLimit && (
+        <div className="app-warning">
+          {Math.ceil((limitSec - elapsedSec) / 60)} minute(s) remaining in this session.
+        </div>
+      )}
+
+      {/* Timeout banner */}
+      {timedOut && (
+        <div className="app-error">
+          <span>Session time limit reached — review your work or end the interview.</span>
+        </div>
+      )}
+
       {/* Error banner */}
       {error && (
         <div className="app-error">
@@ -132,8 +210,12 @@ function App() {
 
       {/* Main content */}
       <main className="app-body">
-        <div className="panel-problem">
-          <ProblemPanel problem={problem} />
+        <div className="panel-capture">
+          <CapturePanel
+            isActive={isActive}
+            prefs={prefs}
+            onSetRegion={() => setRegionOpen(true)}
+          />
         </div>
         <div className="panel-divider" />
         <div className="panel-chat">
@@ -141,17 +223,29 @@ function App() {
             messages={messages}
             onSend={handleSend}
             loading={loading}
-            disabled={!isActive}
+            disabled={!isActive || timedOut}
           />
         </div>
       </main>
+
+      {/* Region selector modal */}
+      {regionOpen && (
+        <RegionSelector
+          initialDisplay={prefs?.captureDisplay ?? 0}
+          onClose={() => setRegionOpen(false)}
+          onSaved={loadPrefs}
+        />
+      )}
 
       {/* Settings modal */}
       {settingsOpen && (
         <Settings
           authStatus={authStatus}
           onUpdate={setAuthStatus}
-          onClose={() => setSettingsOpen(false)}
+          onClose={() => {
+            setSettingsOpen(false);
+            loadPrefs();
+          }}
         />
       )}
     </div>

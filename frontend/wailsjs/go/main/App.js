@@ -18,16 +18,12 @@ export function GetPreferences() {
   return window['go']['main']['App']['GetPreferences']();
 }
 
-export function GetProblem(arg1) {
-  return window['go']['main']['App']['GetProblem'](arg1);
-}
-
 export function GetSessionTranscript(arg1) {
   return window['go']['main']['App']['GetSessionTranscript'](arg1);
 }
 
-export function ListProblems() {
-  return window['go']['main']['App']['ListProblems']();
+export function ListDisplays() {
+  return window['go']['main']['App']['ListDisplays']();
 }
 
 export function ListSessions() {
@@ -42,12 +38,20 @@ export function SetAPIKey(arg1, arg2) {
   return window['go']['main']['App']['SetAPIKey'](arg1, arg2);
 }
 
+export function SetCaptureRegion(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['main']['App']['SetCaptureRegion'](arg1, arg2, arg3, arg4, arg5);
+}
+
+export function SnapshotDisplay(arg1) {
+  return window['go']['main']['App']['SnapshotDisplay'](arg1);
+}
+
 export function StartCapture(arg1) {
   return window['go']['main']['App']['StartCapture'](arg1);
 }
 
-export function StartSession(arg1, arg2) {
-  return window['go']['main']['App']['StartSession'](arg1, arg2);
+export function StartSession(arg1) {
+  return window['go']['main']['App']['StartSession'](arg1);
 }
 
 export function StopCapture() {
