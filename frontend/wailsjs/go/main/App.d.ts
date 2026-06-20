@@ -5,6 +5,10 @@ import {capture} from '../models';
 
 export function EndSession(arg1:string):Promise<void>;
 
+export function EnterOverlayMode():Promise<void>;
+
+export function ExitOverlayMode():Promise<void>;
+
 export function GetAuthStatus():Promise<models.AuthStatus>;
 
 export function GetLatestScreenshot():Promise<string>;
@@ -22,6 +26,8 @@ export function SendMessage(arg1:string):Promise<string>;
 export function SetAPIKey(arg1:string,arg2:string):Promise<void>;
 
 export function SetCaptureRegion(arg1:number,arg2:number,arg3:number,arg4:number,arg5:number):Promise<void>;
+
+export function SetOverlayExpanded(arg1:boolean):Promise<void>;
 
 export function SnapshotDisplay(arg1:number):Promise<string>;
 

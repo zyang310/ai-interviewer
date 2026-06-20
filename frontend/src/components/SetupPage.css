@@ -11,6 +11,13 @@
   overflow: hidden;
   z-index: 200;
   -webkit-font-smoothing: antialiased;
+  /* Frameless window: let the backdrop drag the window */
+  --wails-draggable: drag;
+}
+
+/* But not the card itself — its inputs/buttons must stay interactive */
+.setup-card {
+  --wails-draggable: no-drag;
 }
 
 /* ── Infinite scrolling grid ───────────────────────────────────────── */

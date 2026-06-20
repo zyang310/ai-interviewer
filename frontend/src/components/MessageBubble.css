@@ -20,14 +20,14 @@
 }
 
 .bubble.user {
-  background-color: #2a5298;
-  color: #f0f0f0;
+  background-color: var(--primary-container);
+  color: var(--on-primary-container);
   border-bottom-right-radius: 4px;
 }
 
 .bubble.assistant {
-  background-color: #243447;
-  color: #e0e0e0;
+  background-color: var(--surface-container-high);
+  color: var(--on-surface);
   border-bottom-left-radius: 4px;
 }
 

@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import Chat from "./components/Chat";
 import CapturePanel from "./components/CapturePanel";
+import HubReady from "./components/HubReady";
+import Overlay from "./components/Overlay";
 import RegionSelector from "./components/RegionSelector";
 import Settings from "./components/Settings";
 import SetupPage from "./components/SetupPage";
@@ -9,7 +11,11 @@ import {
   GetPreferences,
   StartSession,
   EndSession,
+  EnterOverlayMode,
+  ExitOverlayMode,
   SendMessage,
+  SetCaptureRegion,
+  SetOverlayExpanded,
   models,
 } from "./lib/wailsBridge";
 import "./App.css";
@@ -42,6 +48,8 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [regionOpen, setRegionOpen] = useState(false);
+  const [view, setView] = useState<"hub" | "history">("hub");
+  const [overlayMode, setOverlayMode] = useState(false);
   const [error, setError] = useState("");
 
   async function loadPrefs() {
@@ -113,6 +121,36 @@ function App() {
     }
   }
 
+  // "Full Screen" capture control — clear any cropped region (w=h=0) so the
+  // backend captures the whole selected display.
+  async function handleFullScreen() {
+    if (!prefs) return;
+    setError("");
+    try {
+      await SetCaptureRegion(prefs.captureDisplay, 0, 0, 0, 0);
+      await loadPrefs();
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    }
+  }
+
+  // Collapse the app into the always-on-top floating overlay bar. The Go calls
+  // resize/pin the window; they no-op in browser preview (no Wails runtime).
+  function enterOverlay() {
+    setOverlayMode(true);
+    EnterOverlayMode().catch(() => {});
+  }
+
+  function exitOverlay() {
+    setOverlayMode(false);
+    ExitOverlayMode().catch(() => {});
+  }
+
+  async function handleEndFromOverlay() {
+    exitOverlay();
+    await handleEnd();
+  }
+
   async function handleSend(text: string) {
     setError("");
     setMessages((prev) => [...prev, { role: "user", content: text }]);
@@ -146,87 +184,145 @@ function App() {
   const warnSec = (prefs?.softWarningMinutes ?? 25) * 60;
   const timedOut = isActive && limitSec > 0 && elapsedSec >= limitSec;
   const nearLimit = isActive && limitSec > 0 && warnSec > 0 && elapsedSec >= warnSec && !timedOut;
+  const displayNum = prefs ? prefs.captureDisplay + 1 : 1;
+  const cropped = prefs ? prefs.regionW > 0 : false;
+  const targetLabel = `Display ${displayNum} · ${cropped ? "cropped region" : "full display"}`;
+
+  // Compact always-on-top overlay takes over the whole (resized) window.
+  if (isActive && overlayMode) {
+    const lastAi = [...messages].reverse().find((m) => m.role === "assistant");
+    return (
+      <Overlay
+        messages={messages}
+        latestAiText={
+          lastAi?.content || "Listening… the interviewer will respond as you work."
+        }
+        onEnd={handleEndFromOverlay}
+        onExpand={exitOverlay}
+        onHistoryToggle={(open) => {
+          SetOverlayExpanded(open).catch(() => {});
+        }}
+      />
+    );
+  }
 
   return (
     <div className="app">
-      {/* Header */}
-      <header className="app-header">
-        <h1 className="app-title">AI Interviewer</h1>
+      {/* Floating pill navigation */}
+      <nav className="pill-nav">
+        <button
+          className={`pill-tab${view === "hub" ? " active" : ""}`}
+          onClick={() => setView("hub")}
+        >
+          <span className="material-symbols-outlined">grid_view</span>
+          <span className="pill-tab-label">Hub</span>
+        </button>
+        <button
+          className={`pill-tab${view === "history" ? " active" : ""}`}
+          onClick={() => setView("history")}
+        >
+          <span className="material-symbols-outlined">history</span>
+          <span className="pill-tab-label">History</span>
+        </button>
+        <button className="pill-tab" onClick={() => setSettingsOpen(true)}>
+          <span className="material-symbols-outlined">settings</span>
+          <span className="pill-tab-label">Settings</span>
+        </button>
+      </nav>
 
-        <div className="header-controls">
-          {isActive && limitSec > 0 && (
-            <span
-              className={`session-timer${nearLimit ? " timer-warning" : ""}${timedOut ? " timer-expired" : ""}`}
-            >
-              {formatTime(elapsedSec)} / {formatTime(limitSec)}
-            </span>
-          )}
-          {!isActive ? (
-            <button
-              className="btn btn-primary"
-              onClick={handleStart}
-              disabled={!authStatus.openRouterConfigured}
-            >
-              Start Interview
+      <div className="app-content">
+        {/* Warning banner (approaching time limit) */}
+        {nearLimit && (
+          <div className="app-warning">
+            {Math.ceil((limitSec - elapsedSec) / 60)} minute(s) remaining in this session.
+          </div>
+        )}
+
+        {/* Timeout banner */}
+        {timedOut && (
+          <div className="app-error">
+            <span>Session time limit reached — review your work or end the interview.</span>
+          </div>
+        )}
+
+        {/* Error banner */}
+        {error && (
+          <div className="app-error">
+            <span>{error}</span>
+            <button className="error-dismiss" onClick={() => setError("")}>
+              &times;
             </button>
-          ) : (
-            <button className="btn btn-danger" onClick={handleEnd}>
-              End Interview
-            </button>
-          )}
-          <button
-            className="btn btn-ghost"
-            onClick={() => setSettingsOpen(true)}
-            title="Settings"
-          >
-            Settings
-          </button>
-        </div>
-      </header>
+          </div>
+        )}
 
-      {/* Warning banner (approaching time limit) */}
-      {nearLimit && (
-        <div className="app-warning">
-          {Math.ceil((limitSec - elapsedSec) / 60)} minute(s) remaining in this session.
-        </div>
-      )}
-
-      {/* Timeout banner */}
-      {timedOut && (
-        <div className="app-error">
-          <span>Session time limit reached — review your work or end the interview.</span>
-        </div>
-      )}
-
-      {/* Error banner */}
-      {error && (
-        <div className="app-error">
-          <span>{error}</span>
-          <button className="error-dismiss" onClick={() => setError("")}>
-            &times;
-          </button>
-        </div>
-      )}
-
-      {/* Main content */}
-      <main className="app-body">
-        <div className="panel-capture">
-          <CapturePanel
-            isActive={isActive}
-            prefs={prefs}
-            onSetRegion={() => setRegionOpen(true)}
+        {view === "history" ? (
+          <div className="history-placeholder">
+            <span className="material-symbols-outlined">history</span>
+            <p className="history-placeholder-title">Session history</p>
+            <p className="history-placeholder-sub">
+              Your past interview sessions will appear here. This view is coming soon.
+            </p>
+          </div>
+        ) : !isActive ? (
+          <HubReady
+            onStart={handleStart}
+            onDefineRegion={() => setRegionOpen(true)}
+            onFullScreen={handleFullScreen}
+            canStart={authStatus.openRouterConfigured}
+            targetLabel={targetLabel}
           />
-        </div>
-        <div className="panel-divider" />
-        <div className="panel-chat">
-          <Chat
-            messages={messages}
-            onSend={handleSend}
-            loading={loading}
-            disabled={!isActive || timedOut}
-          />
-        </div>
-      </main>
+        ) : (
+          <>
+            {/* Active-session bar */}
+            <div className="session-bar">
+              <span className="session-bar-status">
+                <span className="session-bar-dot" />
+                Interview in progress
+              </span>
+              <div className="session-bar-right">
+                {limitSec > 0 && (
+                  <span
+                    className={`session-timer${nearLimit ? " timer-warning" : ""}${timedOut ? " timer-expired" : ""}`}
+                  >
+                    {formatTime(elapsedSec)} / {formatTime(limitSec)}
+                  </span>
+                )}
+                <button
+                  className="btn btn-ghost btn-icon"
+                  onClick={enterOverlay}
+                  title="Collapse to floating overlay over your IDE"
+                >
+                  <span className="material-symbols-outlined">picture_in_picture</span>
+                  Compact
+                </button>
+                <button className="btn btn-danger" onClick={handleEnd}>
+                  End Interview
+                </button>
+              </div>
+            </div>
+
+            {/* Capture + chat */}
+            <main className="app-body">
+              <div className="panel-capture">
+                <CapturePanel
+                  isActive={isActive}
+                  prefs={prefs}
+                  onSetRegion={() => setRegionOpen(true)}
+                />
+              </div>
+              <div className="panel-divider" />
+              <div className="panel-chat">
+                <Chat
+                  messages={messages}
+                  onSend={handleSend}
+                  loading={loading}
+                  disabled={!isActive || timedOut}
+                />
+              </div>
+            </main>
+          </>
+        )}
+      </div>
 
       {/* Region selector modal */}
       {regionOpen && (

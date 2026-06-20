@@ -3,6 +3,8 @@
 
 export {
   EndSession,
+  EnterOverlayMode,
+  ExitOverlayMode,
   GetAuthStatus,
   GetLatestScreenshot,
   GetPreferences,
@@ -12,6 +14,7 @@ export {
   SendMessage,
   SetAPIKey,
   SetCaptureRegion,
+  SetOverlayExpanded,
   SnapshotDisplay,
   StartCapture,
   StartSession,

@@ -9,8 +9,8 @@
 }
 
 .settings-panel {
-  background-color: #1e2d3d;
-  border: 1px solid #2a3a4a;
+  background-color: #1a1d23;
+  border: 1px solid #2e333d;
   border-radius: 12px;
   padding: 24px;
   width: 440px;
@@ -28,14 +28,14 @@
 .settings-header h2 {
   font-size: 18px;
   font-weight: 700;
-  color: #f0f0f0;
+  color: #e2e2e8;
   margin: 0;
 }
 
 .settings-close {
   background: none;
   border: none;
-  color: #8899aa;
+  color: #8c909f;
   font-size: 24px;
   cursor: pointer;
   padding: 0 4px;
@@ -43,7 +43,7 @@
 }
 
 .settings-close:hover {
-  color: #f0f0f0;
+  color: #e2e2e8;
 }
 
 .settings-section {
@@ -53,18 +53,18 @@
 .settings-section h3 {
   font-size: 14px;
   font-weight: 600;
-  color: #ccd;
+  color: #c2c6d6;
   margin: 0 0 4px;
 }
 
 .settings-hint {
   font-size: 12px;
-  color: #667;
+  color: #8c909f;
   margin: 0 0 8px;
 }
 
 .settings-hint a {
-  color: #5b9bd5;
+  color: #adc6ff;
   text-decoration: none;
 }
 
@@ -75,16 +75,16 @@
 .settings-status {
   font-size: 13px;
   margin-bottom: 10px;
-  color: #8899aa;
+  color: #8c909f;
 }
 
 .status-ok {
-  color: #4ade80;
+  color: #4edea3;
   font-weight: 600;
 }
 
 .status-missing {
-  color: #f87171;
+  color: #ffb4ab;
   font-weight: 600;
 }
 
@@ -96,17 +96,17 @@
 .settings-input {
   flex: 1;
   padding: 8px 12px;
-  border: 1px solid #2a3a4a;
+  border: 1px solid #2e333d;
   border-radius: 6px;
-  background-color: #162230;
-  color: #e0e0e0;
+  background-color: #0c0e12;
+  color: #e2e2e8;
   font-size: 14px;
   font-family: inherit;
   outline: none;
 }
 
 .settings-input:focus {
-  border-color: #3a6090;
+  border-color: #adc6ff;
 }
 
 .settings-save {
@@ -116,14 +116,14 @@
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  background-color: #2a5298;
-  color: #f0f0f0;
+  background-color: #4d8eff;
+  color: #e2e2e8;
   white-space: nowrap;
   transition: background-color 0.15s;
 }
 
 .settings-save:hover:not(:disabled) {
-  background-color: #3468b2;
+  background-color: #5b98ff;
 }
 
 .settings-save:disabled {
@@ -146,7 +146,7 @@
 
 .settings-label {
   font-size: 12px;
-  color: #8899aa;
+  color: #8c909f;
 }
 
 .settings-save-bottom {
@@ -154,13 +154,13 @@
 }
 
 .settings-error {
-  color: #f87171;
+  color: #ffb4ab;
   font-size: 13px;
   margin-top: 8px;
 }
 
 .settings-success {
-  color: #4ade80;
+  color: #4edea3;
   font-size: 13px;
   margin-top: 8px;
 }

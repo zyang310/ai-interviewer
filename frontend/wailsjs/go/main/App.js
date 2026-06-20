@@ -6,6 +6,14 @@ export function EndSession(arg1) {
   return window['go']['main']['App']['EndSession'](arg1);
 }
 
+export function EnterOverlayMode() {
+  return window['go']['main']['App']['EnterOverlayMode']();
+}
+
+export function ExitOverlayMode() {
+  return window['go']['main']['App']['ExitOverlayMode']();
+}
+
 export function GetAuthStatus() {
   return window['go']['main']['App']['GetAuthStatus']();
 }
@@ -40,6 +48,10 @@ export function SetAPIKey(arg1, arg2) {
 
 export function SetCaptureRegion(arg1, arg2, arg3, arg4, arg5) {
   return window['go']['main']['App']['SetCaptureRegion'](arg1, arg2, arg3, arg4, arg5);
+}
+
+export function SetOverlayExpanded(arg1) {
+  return window['go']['main']['App']['SetOverlayExpanded'](arg1);
 }
 
 export function SnapshotDisplay(arg1) {
