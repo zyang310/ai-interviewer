@@ -12,7 +12,17 @@ Much of the groundwork already exists, which keeps this small:
 - The **overlay already has a placeholder mic button + "Live" indicator** ([Overlay.tsx:47,67](../frontend/src/components/Overlay.tsx)); Settings has a "Voice Calibration" placeholder tab ([Settings.tsx:304](../frontend/src/components/Settings.tsx)).
 - Clear patterns to mirror: **`ai.Client`** (apiKey + httpClient + headers + cached `ListModels`, [client.go](../internal/ai/client.go)) for the voice client, and **`ModelPicker`** ([ModelPicker.tsx](../frontend/src/components/ModelPicker.tsx)) for the voice picker.
 
-**Outcome:** click the mic → speak → ElevenLabs Scribe transcribes → the existing interview loop runs → when **voice mode** is on, the reply is spoken via ElevenLabs Flash v2.5. Voice selection lives in Settings. The typed flow is untouched.
+**Outcome:** click the mic → speak → ElevenLabs Scribe transcribes → the existing interview loop runs → when **voice mode** is on, the reply is spoken via the active TTS provider. Voice selection lives in Settings. The typed flow is untouched.
+
+> **Update (post-Phase 2): dual TTS providers.** TTS now supports **two interchangeable providers** behind app.go's `ttsProvider` interface — **Google Cloud TTS (default, ~10× cheaper)** and **ElevenLabs Flash (premium)** — selected via a toggle in Settings → Voice. Google has no hosted preview URLs, so the picker previews via the `PreviewVoice` binding. Each provider remembers its own voice (`Preferences.VoiceID` / `GoogleVoiceID`); `Preferences.TTSProvider` chooses the active one. New package: `internal/googletts`. See [architecture.md](architecture.md) for the API contracts.
+
+> **Update (two self-sufficient voice paths).** STT is now pluggable too, so **one key gives a complete voice experience**: Google-only → Google STT + Google TTS; ElevenLabs-only → Scribe + Flash. There is **no STT toggle** — two independent "prefer" rules produce every path, and the Settings toggle stays **voice-only**:
+> - **STT** prefers ElevenLabs Scribe when its key is present (cheaper per-minute and robust), else Google — `app.go`'s `activeSTT()` / `sttProvider` interface.
+> - **TTS** prefers the toggle (default Google), with the existing fallback — `activeTTS()`.
+>
+> With **both** keys the intersection is the optimal combo: **Scribe STT + Google TTS**, automatically.
+>
+> **Audio-format unlock:** the mic records via `MediaRecorder`, which on macOS WKWebView emits **AAC/MP4** that Google STT can't ingest. So all recordings are re-encoded **in the browser to 16 kHz mono WAV (LINEAR16)** ([`audioToWav.ts`](../frontend/src/lib/audioToWav.ts) via `decodeAudioData` + `OfflineAudioContext`) — a format both Google STT and Scribe accept, with no ffmpeg/native dependency. Google STT lives in `internal/googletts` (`Transcribe`, V1 `speech:recognize`).
 
 ## Confirmed API contracts (verified live, June 2026)
 

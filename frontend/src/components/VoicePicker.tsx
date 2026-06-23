@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ListVoices, models } from "../lib/wailsBridge";
+import { ListVoices, PreviewVoice, models } from "../lib/wailsBridge";
 import { useAudioPlayer } from "../lib/useAudioPlayer";
 import "./VoicePicker.css";
 
@@ -7,13 +7,15 @@ interface Props {
   currentVoiceId: string;
   onSelect: (voiceId: string) => void; // parent persists via UpdatePreferences
   speed?: number; // playback rate for previews, so they reflect the speed slider
+  provider?: string; // active TTS provider; refetch the catalog when it changes
 }
 
-// VoicePicker is a searchable list of ElevenLabs voices for Settings. It fetches
-// the account's voices on mount and filters client-side by name. Selecting a row
-// reports the id upward — persistence is the parent's job. Each row has a ▶
-// button that plays the voice's sample. Mirrors ModelPicker.
-export default function VoicePicker({ currentVoiceId, onSelect, speed = 1 }: Props) {
+// VoicePicker is a searchable list of the active provider's voices for Settings.
+// It fetches the catalog (refetching when the provider changes) and filters
+// client-side by name. Selecting a row reports the id upward — persistence is the
+// parent's job. Each row has a ▶ button: ElevenLabs voices play their hosted
+// sample, Google voices synthesize one on the fly. Mirrors ModelPicker.
+export default function VoicePicker({ currentVoiceId, onSelect, speed = 1, provider }: Props) {
   const [allVoices, setAllVoices] = useState<models.Voice[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -21,10 +23,13 @@ export default function VoicePicker({ currentVoiceId, onSelect, speed = 1 }: Pro
   const [previewingId, setPreviewingId] = useState<string | null>(null);
   const { speaking, play, stop } = useAudioPlayer();
 
-  // Fetch voices once. Wails calls no-op in a plain browser, so guard with
-  // try/catch and surface failures inline.
+  // Fetch the active provider's voices, refetching when the provider changes.
+  // Wails calls no-op in a plain browser, so guard with try/catch and surface
+  // failures inline.
   useEffect(() => {
     let cancelled = false;
+    setLoading(true);
+    setError("");
     (async () => {
       try {
         const list = await ListVoices();
@@ -38,7 +43,7 @@ export default function VoicePicker({ currentVoiceId, onSelect, speed = 1 }: Pro
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [provider]);
 
   // Clear the "playing" marker whenever playback ends (or is stopped/fails).
   useEffect(() => {
@@ -58,13 +63,20 @@ export default function VoicePicker({ currentVoiceId, onSelect, speed = 1 }: Pro
     });
   }, [allVoices, search, currentVoiceId]);
 
-  function handlePreview(v: models.Voice) {
+  // Preview a voice. ElevenLabs voices have a hosted previewUrl; Google voices
+  // don't, so we synthesize a short sample on the fly via PreviewVoice.
+  async function handlePreview(v: models.Voice) {
     if (previewingId === v.id) {
       stop(); // the speaking→false effect clears previewingId
       return;
     }
     setPreviewingId(v.id);
-    play(v.previewUrl, speed).catch(() => setPreviewingId(null));
+    try {
+      const src = v.previewUrl || (await PreviewVoice(v.id));
+      await play(src, speed);
+    } catch {
+      setPreviewingId(null);
+    }
   }
 
   return (
@@ -102,18 +114,16 @@ export default function VoicePicker({ currentVoiceId, onSelect, speed = 1 }: Pro
                     <span className="voice-badge">{v.category}</span>
                   )}
                 </button>
-                {v.previewUrl && (
-                  <button
-                    type="button"
-                    className="voice-picker-preview"
-                    onClick={() => handlePreview(v)}
-                    title={playing ? "Stop preview" : "Preview voice"}
-                  >
-                    <span className="material-symbols-outlined">
-                      {playing ? "stop" : "play_arrow"}
-                    </span>
-                  </button>
-                )}
+                <button
+                  type="button"
+                  className="voice-picker-preview"
+                  onClick={() => handlePreview(v)}
+                  title={playing ? "Stop preview" : "Preview voice"}
+                >
+                  <span className="material-symbols-outlined">
+                    {playing ? "stop" : "play_arrow"}
+                  </span>
+                </button>
               </li>
             );
           })}

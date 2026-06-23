@@ -30,6 +30,7 @@ export namespace models {
 	export class AuthStatus {
 	    openRouterConfigured: boolean;
 	    elevenLabsConfigured: boolean;
+	    googleConfigured: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new AuthStatus(source);
@@ -39,6 +40,7 @@ export namespace models {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.openRouterConfigured = source["openRouterConfigured"];
 	        this.elevenLabsConfigured = source["elevenLabsConfigured"];
+	        this.googleConfigured = source["googleConfigured"];
 	    }
 	}
 	export class Message {
@@ -111,8 +113,10 @@ export namespace models {
 	export class Preferences {
 	    captureIntervalMs: number;
 	    model: string;
-	    voiceId: string;
 	    voiceSpeed: number;
+	    ttsProvider: string;
+	    voiceId: string;
+	    googleVoiceId: string;
 	    captureDisplay: number;
 	    regionX: number;
 	    regionY: number;
@@ -129,8 +133,10 @@ export namespace models {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.captureIntervalMs = source["captureIntervalMs"];
 	        this.model = source["model"];
-	        this.voiceId = source["voiceId"];
 	        this.voiceSpeed = source["voiceSpeed"];
+	        this.ttsProvider = source["ttsProvider"];
+	        this.voiceId = source["voiceId"];
+	        this.googleVoiceId = source["googleVoiceId"];
 	        this.captureDisplay = source["captureDisplay"];
 	        this.regionX = source["regionX"];
 	        this.regionY = source["regionY"];

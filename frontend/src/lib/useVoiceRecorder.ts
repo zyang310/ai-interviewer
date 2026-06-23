@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from "react";
+import { blobToWavBase64 } from "./audioToWav";
 
 /** A finished recording: base64-encoded audio (no data-URI prefix) + its MIME type. */
 export interface Recording {
@@ -9,10 +10,9 @@ export interface Recording {
 /**
  * useVoiceRecorder wraps MediaRecorder for click-to-toggle push-to-talk.
  * `start()` requests mic access and begins recording; `stop()` ends it and
- * resolves the captured audio (or null if nothing was recorded). The MIME type
- * is whatever the platform produces — on macOS WKWebView that's audio/mp4, on
- * Chromium audio/webm — and is passed through so the backend labels the upload
- * correctly.
+ * resolves the captured audio (or null if nothing was recorded). Whatever codec
+ * the platform records (AAC/MP4 on WKWebView, Opus/WebM on Chromium) is
+ * re-encoded to 16 kHz mono WAV so either STT provider can transcribe it.
  */
 export function useVoiceRecorder() {
   const [recording, setRecording] = useState(false);
@@ -72,7 +72,7 @@ export function useVoiceRecorder() {
           return;
         }
         try {
-          resolve({ base64: await blobToBase64(blob), mimeType: recorder.mimeType });
+          resolve({ base64: await blobToWavBase64(blob), mimeType: "audio/wav" });
         } catch {
           resolve(null);
         }
@@ -94,18 +94,4 @@ function pickMimeType(): string {
     }
   }
   return ""; // let the browser pick its default
-}
-
-// blobToBase64 reads a Blob as base64, stripping the "data:...;base64," prefix.
-function blobToBase64(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const result = String(reader.result);
-      const comma = result.indexOf(",");
-      resolve(comma >= 0 ? result.slice(comma + 1) : result);
-    };
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(blob);
-  });
 }

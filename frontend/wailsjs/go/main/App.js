@@ -46,6 +46,10 @@ export function ListVoices() {
   return window['go']['main']['App']['ListVoices']();
 }
 
+export function PreviewVoice(arg1) {
+  return window['go']['main']['App']['PreviewVoice'](arg1);
+}
+
 export function SendMessage(arg1) {
   return window['go']['main']['App']['SendMessage'](arg1);
 }

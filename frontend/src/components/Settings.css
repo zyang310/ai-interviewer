@@ -259,6 +259,44 @@
   color: var(--on-surface);
 }
 
+/* ── Segmented control (TTS provider toggle) ─────────────────────────────── */
+.settings-segmented {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 10px;
+  background-color: var(--surface-container);
+  border: 1px solid var(--outline-variant);
+}
+
+.settings-segment {
+  flex: 1;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 7px;
+  background: none;
+  color: var(--on-surface-variant);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.settings-segment:hover:not(:disabled):not(.active) {
+  background-color: var(--surface-container-highest);
+}
+
+.settings-segment.active {
+  background-color: var(--primary);
+  color: var(--on-primary, #00204d);
+}
+
+.settings-segment:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 /* ── Status + feedback ───────────────────────────────────────────────────── */
 .settings-status {
   font-size: 13px;

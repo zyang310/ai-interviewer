@@ -40,6 +40,7 @@ function App() {
     new models.AuthStatus({
       openRouterConfigured: false,
       elevenLabsConfigured: false,
+      googleConfigured: false,
     })
   );
   const [authLoaded, setAuthLoaded] = useState(false);
@@ -146,11 +147,17 @@ function App() {
     }
   }
 
-  // Speak an interviewer reply via ElevenLabs TTS — only when voice mode is on
-  // and a key is configured. Fire-and-forget from handleSend; errors surface in
-  // the banner but never drop the (already-shown) text reply.
+  // Whether any TTS provider (Google or ElevenLabs) is available to speak replies.
+  const ttsConfigured = authStatus.googleConfigured || authStatus.elevenLabsConfigured;
+  // Whether any STT provider is available to transcribe the mic (Scribe if an
+  // ElevenLabs key exists, else Google — resolved in the backend's activeSTT).
+  const sttConfigured = authStatus.googleConfigured || authStatus.elevenLabsConfigured;
+
+  // Speak an interviewer reply via the active TTS provider — only when voice mode
+  // is on and a key is configured. Fire-and-forget from handleSend; errors surface
+  // in the banner but never drop the (already-shown) text reply.
   async function speak(text: string) {
-    if (!voiceModeRef.current || !authStatus.elevenLabsConfigured) return;
+    if (!voiceModeRef.current || !ttsConfigured) return;
     try {
       const audioB64 = await SynthesizeSpeech(text);
       await player.play(audioB64, prefs?.voiceSpeed ?? 1);
@@ -162,8 +169,8 @@ function App() {
   // Toggle the speaker (voice mode). Turning it on without a key is a no-op with
   // a clear error; turning it off stops any in-flight playback (via setVoice).
   function toggleVoice() {
-    if (!voiceMode && !authStatus.elevenLabsConfigured) {
-      setError("ElevenLabs API key not configured — add it in Settings.");
+    if (!voiceMode && !ttsConfigured) {
+      setError("No voice provider configured — add a Google Cloud or ElevenLabs key in Settings.");
       return;
     }
     setVoice(!voiceMode);
@@ -173,6 +180,10 @@ function App() {
   // transcribes → feeds the text into the normal send loop. Speaking a question
   // turns voice mode on so the reply is spoken back.
   async function handleMicToggle() {
+    if (!recorder.recording && !sttConfigured) {
+      setError("No transcription provider configured — add a Google Cloud or ElevenLabs key in Settings.");
+      return;
+    }
     if (recorder.recording) {
       const rec = await recorder.stop();
       if (!rec) return;

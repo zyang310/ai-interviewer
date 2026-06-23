@@ -12,9 +12,12 @@ import (
 const (
 	keyOpenRouterAPIKey    = "openrouter_api_key"
 	keyElevenLabsAPIKey    = "elevenlabs_api_key"
+	keyGoogleAPIKey        = "google_api_key"
 	keyCaptureIntervalMs   = "capture_interval_ms"
 	keyModel               = "model"
+	keyTTSProvider         = "tts_provider"
 	keyVoiceID             = "voice_id"
+	keyGoogleVoiceID       = "google_voice_id"
 	keyVoiceSpeed          = "voice_speed"
 	keyCaptureDisplay      = "capture_display"
 	keyRegionX             = "region_x"
@@ -25,8 +28,8 @@ const (
 	keySoftWarningMinutes  = "soft_warning_minutes"
 )
 
-// GetAPIKey retrieves a stored API key. provider is "openrouter" or "elevenlabs".
-// Returns empty string (no error) if not set.
+// GetAPIKey retrieves a stored API key. provider is "openrouter", "elevenlabs",
+// or "google". Returns empty string (no error) if not set.
 //
 // TODO(phase-4): encrypt stored keys using an OS keychain or AES-GCM before
 // persisting — right now keys are stored as plain text in SQLite.
@@ -52,6 +55,7 @@ func (db *DB) GetPreferences() (models.Preferences, error) {
 	p := models.Preferences{
 		CaptureIntervalMs:   3000,
 		Model:               "anthropic/claude-sonnet-4",
+		TTSProvider:         "google",
 		VoiceSpeed:          1.0,
 		SessionLimitMinutes: 30,
 		SoftWarningMinutes:  25,
@@ -65,8 +69,14 @@ func (db *DB) GetPreferences() (models.Preferences, error) {
 	if v, err := db.getPref(keyModel); err == nil && v != "" {
 		p.Model = v
 	}
+	if v, err := db.getPref(keyTTSProvider); err == nil && v != "" {
+		p.TTSProvider = v
+	}
 	if v, err := db.getPref(keyVoiceID); err == nil {
 		p.VoiceID = v
+	}
+	if v, err := db.getPref(keyGoogleVoiceID); err == nil {
+		p.GoogleVoiceID = v
 	}
 	// Guard > 0 so a missing/zero stored value keeps the 1.0 default.
 	if v, err := db.getPref(keyVoiceSpeed); err == nil && v != "" {
@@ -120,7 +130,13 @@ func (db *DB) SavePreferences(p models.Preferences) error {
 	if err := db.setPref(keyModel, p.Model); err != nil {
 		return err
 	}
+	if err := db.setPref(keyTTSProvider, p.TTSProvider); err != nil {
+		return err
+	}
 	if err := db.setPref(keyVoiceID, p.VoiceID); err != nil {
+		return err
+	}
+	if err := db.setPref(keyGoogleVoiceID, p.GoogleVoiceID); err != nil {
 		return err
 	}
 	if err := db.setPref(keyVoiceSpeed, strconv.FormatFloat(p.VoiceSpeed, 'f', -1, 64)); err != nil {
@@ -179,6 +195,8 @@ func providerKey(provider string) string {
 		return keyOpenRouterAPIKey
 	case "elevenlabs":
 		return keyElevenLabsAPIKey
+	case "google":
+		return keyGoogleAPIKey
 	}
 	return ""
 }

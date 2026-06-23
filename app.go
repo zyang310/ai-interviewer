@@ -10,6 +10,7 @@ import (
 
 	"ai-interviewer/internal/ai"
 	"ai-interviewer/internal/capture"
+	"ai-interviewer/internal/googletts"
 	"ai-interviewer/internal/models"
 	"ai-interviewer/internal/store"
 	"ai-interviewer/internal/voice"
@@ -32,7 +33,8 @@ type App struct {
 	db          *store.DB
 	capturer    *capture.Capturer
 	aiClient    *ai.Client
-	voiceClient *voice.Client
+	voiceClient *voice.Client     // ElevenLabs: STT + TTS
+	googleTTS   *googletts.Client // Google Cloud TTS
 	active      *activeSession
 }
 
@@ -61,6 +63,13 @@ func NewApp() (*App, error) {
 		log.Printf("warning: could not read ElevenLabs key: %v", err)
 	} else if key != "" {
 		app.voiceClient = voice.NewClient(key)
+	}
+
+	// Restore the Google TTS client from the persisted Google key (if any).
+	if key, err := db.GetAPIKey("google"); err != nil {
+		log.Printf("warning: could not read Google key: %v", err)
+	} else if key != "" {
+		app.googleTTS = googletts.NewClient(key)
 	}
 
 	// Restore the saved capture region so on-demand captures honour it too.
@@ -96,8 +105,8 @@ func (a *App) shutdown(ctx context.Context) {
 // Auth
 // ---------------------------------------------------------------------------
 
-// SetAPIKey stores an API key for the given provider ("openrouter" or
-// "elevenlabs") and activates it immediately. No restart required.
+// SetAPIKey stores an API key for the given provider ("openrouter",
+// "elevenlabs", or "google") and activates it immediately. No restart required.
 func (a *App) SetAPIKey(provider, key string) error {
 	if err := a.db.SetAPIKey(provider, key); err != nil {
 		return err
@@ -107,6 +116,8 @@ func (a *App) SetAPIKey(provider, key string) error {
 		a.aiClient = ai.NewClient(key)
 	case "elevenlabs":
 		a.voiceClient = voice.NewClient(key)
+	case "google":
+		a.googleTTS = googletts.NewClient(key)
 	}
 	return nil
 }
@@ -115,9 +126,11 @@ func (a *App) SetAPIKey(provider, key string) error {
 func (a *App) GetAuthStatus() models.AuthStatus {
 	dbKey, _ := a.db.GetAPIKey("openrouter")
 	elKey, _ := a.db.GetAPIKey("elevenlabs")
+	googleKey, _ := a.db.GetAPIKey("google")
 	return models.AuthStatus{
 		OpenRouterConfigured: dbKey != "",
 		ElevenLabsConfigured: elKey != "",
+		GoogleConfigured:     googleKey != "",
 	}
 }
 
@@ -347,20 +360,94 @@ func (a *App) ListAvailableModels() ([]models.Model, error) {
 }
 
 // ---------------------------------------------------------------------------
-// Voice (ElevenLabs)
+// Voice (ElevenLabs STT + ElevenLabs/Google TTS)
 // ---------------------------------------------------------------------------
 
 // defaultVoiceID is ElevenLabs' long-stable "Rachel" premade voice, used as a
 // fallback so spoken replies work before the user picks a voice in Settings.
 const defaultVoiceID = "21m00Tcm4TlvDq8ikWAM"
 
-// TranscribeAudio converts recorded mic audio (base64, optionally a data URI)
-// into text via ElevenLabs Scribe. mimeType is the recorder's output type, used
-// only to label the upload. The frontend feeds the result into the normal
-// SendMessage loop, so voice and typed input share one path.
+// defaultGoogleVoiceID is a widely-available, low-cost Neural2 voice used as the
+// Google fallback before the user picks one.
+const defaultGoogleVoiceID = "en-US-Neural2-F"
+
+// previewPhrase is spoken by PreviewVoice when auditioning a voice that has no
+// hosted preview clip (Google) — kept short to minimise synthesis cost.
+const previewPhrase = "Hi, let's get started with the interview."
+
+// ttsProvider is the minimal text-to-speech contract app.go needs. Both
+// *voice.Client (ElevenLabs) and *googletts.Client satisfy it, so the active
+// provider is chosen at call time without branching on concrete types.
+type ttsProvider interface {
+	Synthesize(ctx context.Context, voiceID, text string) ([]byte, error)
+	ListVoices(ctx context.Context) ([]models.Voice, error)
+}
+
+// sttProvider is the minimal speech-to-text contract. Both *voice.Client
+// (ElevenLabs Scribe) and *googletts.Client (Google STT) satisfy it.
+type sttProvider interface {
+	Transcribe(ctx context.Context, audio []byte, mimeType string) (string, error)
+}
+
+// activeSTT returns the speech-to-text provider to use for the mic. It prefers
+// ElevenLabs Scribe when configured (cheaper per minute and it robustly handles
+// the recorder's audio) and falls back to Google. With both keys present this
+// yields the optimal combo: Scribe STT + Google TTS. STT has no user toggle —
+// the Settings toggle is voice-only.
+func (a *App) activeSTT() (sttProvider, error) {
+	if a.voiceClient != nil {
+		return a.voiceClient, nil
+	}
+	if a.googleTTS != nil {
+		return a.googleTTS, nil
+	}
+	return nil, fmt.Errorf("no voice provider configured — add a Google Cloud or ElevenLabs key in Settings")
+}
+
+// activeTTS returns the configured TTS provider and the voice to use for it,
+// based on Preferences.TTSProvider. If the chosen provider has no key, it falls
+// back to the other configured provider so audio still works; if neither is
+// configured it returns an error.
+func (a *App) activeTTS() (ttsProvider, string, error) {
+	prefs, _ := a.db.GetPreferences()
+
+	elevenVoice := prefs.VoiceID
+	if elevenVoice == "" {
+		elevenVoice = defaultVoiceID
+	}
+	googleVoice := prefs.GoogleVoiceID
+	if googleVoice == "" {
+		googleVoice = defaultGoogleVoiceID
+	}
+
+	if prefs.TTSProvider == "elevenlabs" {
+		if a.voiceClient != nil {
+			return a.voiceClient, elevenVoice, nil
+		}
+		if a.googleTTS != nil {
+			return a.googleTTS, googleVoice, nil // fall back so audio still works
+		}
+		return nil, "", fmt.Errorf("ElevenLabs API key not configured — add it in Settings")
+	}
+
+	// Default provider: Google.
+	if a.googleTTS != nil {
+		return a.googleTTS, googleVoice, nil
+	}
+	if a.voiceClient != nil {
+		return a.voiceClient, elevenVoice, nil // fall back so audio still works
+	}
+	return nil, "", fmt.Errorf("Google API key not configured — add it in Settings")
+}
+
+// TranscribeAudio converts recorded mic audio (base64 WAV, optionally a data URI)
+// into text via the active STT provider (ElevenLabs Scribe if configured, else
+// Google). mimeType labels the upload. The frontend feeds the result into the
+// normal SendMessage loop, so voice and typed input share one path.
 func (a *App) TranscribeAudio(audioBase64, mimeType string) (string, error) {
-	if a.voiceClient == nil {
-		return "", fmt.Errorf("ElevenLabs API key not configured — add it in Settings")
+	provider, err := a.activeSTT()
+	if err != nil {
+		return "", err
 	}
 
 	// Accept either a raw base64 string or a full data URI ("data:audio/...;base64,...").
@@ -372,39 +459,55 @@ func (a *App) TranscribeAudio(audioBase64, mimeType string) (string, error) {
 		return "", fmt.Errorf("decode audio: %w", err)
 	}
 
-	return a.voiceClient.Transcribe(a.ctx, audio, mimeType)
+	return provider.Transcribe(a.ctx, audio, mimeType)
 }
 
-// SynthesizeSpeech converts interviewer text into spoken audio via ElevenLabs
-// Flash, using the voice saved in preferences (or the default). It returns the
-// MP3 as base64 so it crosses the Wails boundary as a string, matching how
-// screenshots are passed; the frontend plays it via the Web Audio API.
+// SynthesizeSpeech converts interviewer text into spoken audio via the active
+// TTS provider (Google or ElevenLabs), using the voice saved in preferences (or
+// the default). The reply is cleaned of markdown first (ai.SanitizeForSpeech) so
+// the voice doesn't read backticks/asterisks aloud. It returns the MP3 as base64
+// so it crosses the Wails boundary as a string, matching how screenshots are
+// passed; the frontend plays it via the Web Audio API.
 func (a *App) SynthesizeSpeech(text string) (string, error) {
-	if a.voiceClient == nil {
-		return "", fmt.Errorf("ElevenLabs API key not configured — add it in Settings")
+	provider, voiceID, err := a.activeTTS()
+	if err != nil {
+		return "", err
 	}
-
-	prefs, _ := a.db.GetPreferences()
-	voiceID := prefs.VoiceID
-	if voiceID == "" {
-		voiceID = defaultVoiceID
-	}
-
-	audio, err := a.voiceClient.Synthesize(a.ctx, voiceID, text)
+	audio, err := provider.Synthesize(a.ctx, voiceID, ai.SanitizeForSpeech(text))
 	if err != nil {
 		return "", err
 	}
 	return base64.StdEncoding.EncodeToString(audio), nil
 }
 
-// ListVoices returns the account's available ElevenLabs voices for the Settings
+// ListVoices returns the active provider's available voices for the Settings
 // picker. Saving a choice needs no binding here — the picker writes the selected
-// id to Preferences.VoiceID through UpdatePreferences.
+// id to Preferences (VoiceID or GoogleVoiceID) through UpdatePreferences.
 func (a *App) ListVoices() ([]models.Voice, error) {
-	if a.voiceClient == nil {
-		return nil, fmt.Errorf("set an ElevenLabs API key first")
+	provider, _, err := a.activeTTS()
+	if err != nil {
+		return nil, err
 	}
-	return a.voiceClient.ListVoices(a.ctx)
+	return provider.ListVoices(a.ctx)
+}
+
+// PreviewVoice synthesizes a short fixed phrase with the given voice via the
+// active provider and returns it as base64 MP3. It backs the picker's preview
+// button for providers without hosted preview clips (Google). An empty voiceID
+// falls back to the active provider's default.
+func (a *App) PreviewVoice(voiceID string) (string, error) {
+	provider, fallback, err := a.activeTTS()
+	if err != nil {
+		return "", err
+	}
+	if voiceID == "" {
+		voiceID = fallback
+	}
+	audio, err := provider.Synthesize(a.ctx, voiceID, previewPhrase)
+	if err != nil {
+		return "", err
+	}
+	return base64.StdEncoding.EncodeToString(audio), nil
 }
 
 // ---------------------------------------------------------------------------

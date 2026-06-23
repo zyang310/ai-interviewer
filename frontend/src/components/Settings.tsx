@@ -44,6 +44,7 @@ export default function Settings({ authStatus, onAuthChange, onPrefsChange }: Pr
   );
   const [openRouterKey, setOpenRouterKey] = useState("");
   const [elevenLabsKey, setElevenLabsKey] = useState("");
+  const [googleKey, setGoogleKey] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -55,6 +56,8 @@ export default function Settings({ authStatus, onAuthChange, onPrefsChange }: Pr
   // Live slider value; persisted only on commit (pointer/key up) to avoid a DB
   // write per step. Drives the readout and the VoicePicker preview speed.
   const [voiceSpeed, setVoiceSpeed] = useState(1);
+  // Active TTS provider; drives the voice picker and which voice field is saved.
+  const [ttsProvider, setTtsProvider] = useState("google");
 
   // Load preferences on mount.
   useEffect(() => {
@@ -65,6 +68,7 @@ export default function Settings({ authStatus, onAuthChange, onPrefsChange }: Pr
         setLimitMinutes(String(p.sessionLimitMinutes ?? 30));
         setWarningMinutes(String(p.softWarningMinutes ?? 25));
         setVoiceSpeed(p.voiceSpeed || 1);
+        setTtsProvider(p.ttsProvider || "google");
       })
       .catch(() => {});
   }, []);
@@ -116,8 +120,29 @@ export default function Settings({ authStatus, onAuthChange, onPrefsChange }: Pr
     return savePrefs({ model: modelId }, "Model saved.");
   }
 
+  // The provider actually in effect: the saved choice if its key exists, else
+  // whichever provider is configured. Mirrors app.go's activeTTS fallback so the
+  // picker and saved voice stay consistent with what gets spoken.
+  function resolveProvider(pref: string): string {
+    if (pref === "elevenlabs" && authStatus.elevenLabsConfigured) return "elevenlabs";
+    if (pref === "google" && authStatus.googleConfigured) return "google";
+    if (authStatus.googleConfigured) return "google";
+    if (authStatus.elevenLabsConfigured) return "elevenlabs";
+    return pref;
+  }
+
+  // Voices are provider-specific, so save to the field matching the active provider.
   function saveVoice(voiceId: string) {
-    return savePrefs({ voiceId }, "Voice saved.");
+    const patch =
+      resolveProvider(ttsProvider) === "elevenlabs"
+        ? { voiceId }
+        : { googleVoiceId: voiceId };
+    return savePrefs(patch, "Voice saved.");
+  }
+
+  function saveTTSProvider(provider: string) {
+    setTtsProvider(provider);
+    return savePrefs({ ttsProvider: provider }, "Voice provider saved.");
   }
 
   // Persist the slider's current value once the user finishes dragging.
@@ -125,8 +150,19 @@ export default function Settings({ authStatus, onAuthChange, onPrefsChange }: Pr
     return savePrefs({ voiceSpeed }, "Voice speed saved.");
   }
 
-  async function saveKey(provider: "openrouter" | "elevenlabs") {
-    const key = (provider === "openrouter" ? openRouterKey : elevenLabsKey).trim();
+  async function saveKey(provider: "openrouter" | "elevenlabs" | "google") {
+    const keys = { openrouter: openRouterKey, elevenlabs: elevenLabsKey, google: googleKey };
+    const setters = {
+      openrouter: setOpenRouterKey,
+      elevenlabs: setElevenLabsKey,
+      google: setGoogleKey,
+    };
+    const labels = {
+      openrouter: "OpenRouter",
+      elevenlabs: "ElevenLabs",
+      google: "Google Cloud",
+    };
+    const key = keys[provider].trim();
     if (!key) return;
     setSaving(true);
     setError("");
@@ -134,19 +170,17 @@ export default function Settings({ authStatus, onAuthChange, onPrefsChange }: Pr
     try {
       await SetAPIKey(provider, key);
       onAuthChange(await GetAuthStatus());
-      if (provider === "openrouter") {
-        setOpenRouterKey("");
-        setSuccess("OpenRouter API key saved.");
-      } else {
-        setElevenLabsKey("");
-        setSuccess("ElevenLabs API key saved.");
-      }
+      setters[provider]("");
+      setSuccess(`${labels[provider]} API key saved.`);
     } catch (e: any) {
       setError(e?.message || String(e));
     } finally {
       setSaving(false);
     }
   }
+
+  const activeProvider = resolveProvider(ttsProvider);
+  const anyVoiceConfigured = authStatus.googleConfigured || authStatus.elevenLabsConfigured;
 
   return (
     <div className="settings-page">
@@ -312,6 +346,55 @@ export default function Settings({ authStatus, onAuthChange, onPrefsChange }: Pr
                   </button>
                 </div>
               </div>
+
+              <div className="settings-card">
+                <h3 className="settings-card-title">Google Cloud</h3>
+                <p className="settings-hint">
+                  Low-cost spoken interviews (~10× cheaper than ElevenLabs). Enable the{" "}
+                  <a
+                    href="https://console.cloud.google.com/apis/library/texttospeech.googleapis.com"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Text-to-Speech API
+                  </a>{" "}
+                  and create an API key in{" "}
+                  <a
+                    href="https://console.cloud.google.com/apis/credentials"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Credentials
+                  </a>
+                  .
+                </p>
+                <div className="settings-status">
+                  Status:{" "}
+                  {authStatus.googleConfigured ? (
+                    <span className="status-ok">Configured</span>
+                  ) : (
+                    <span className="status-missing">Not configured</span>
+                  )}
+                </div>
+                <div className="settings-field-row">
+                  <input
+                    type="password"
+                    className="settings-input settings-input-grow"
+                    value={googleKey}
+                    onChange={(e) => setGoogleKey(e.target.value)}
+                    placeholder="AIza..."
+                    disabled={saving}
+                    onKeyDown={(e) => e.key === "Enter" && saveKey("google")}
+                  />
+                  <button
+                    className="btn btn-primary settings-field-save"
+                    onClick={() => saveKey("google")}
+                    disabled={!googleKey.trim() || saving}
+                  >
+                    {saving ? "Saving…" : "Save"}
+                  </button>
+                </div>
+              </div>
             </>
           )}
 
@@ -319,73 +402,111 @@ export default function Settings({ authStatus, onAuthChange, onPrefsChange }: Pr
             <>
               <header className="settings-head">
                 <h1>Voice Calibration</h1>
-                <p>Pick the voice your interviewer speaks with. Powered by ElevenLabs.</p>
+                <p>Pick the provider and voice your interviewer speaks with.</p>
               </header>
-              {authStatus.elevenLabsConfigured ? (
-                <div className="settings-card">
-                  <div className="settings-card-head">
-                    <span className="material-symbols-outlined">record_voice_over</span>
-                    <h3 className="settings-card-title">Interviewer Voice</h3>
+              {anyVoiceConfigured ? (
+                <>
+                  <div className="settings-card">
+                    <div className="settings-card-head">
+                      <span className="material-symbols-outlined">record_voice_over</span>
+                      <h3 className="settings-card-title">Provider</h3>
+                    </div>
+                    <p className="settings-hint">
+                      Sets the spoken voice only — Google is low-cost, ElevenLabs is premium, and
+                      each remembers its own voice. Mic transcription uses ElevenLabs when its key
+                      is present, otherwise Google.
+                    </p>
+                    <div className="settings-segmented">
+                      <button
+                        type="button"
+                        className={`settings-segment${activeProvider === "google" ? " active" : ""}`}
+                        onClick={() => saveTTSProvider("google")}
+                        disabled={saving || !authStatus.googleConfigured}
+                        title={authStatus.googleConfigured ? "" : "Add a Google Cloud key first"}
+                      >
+                        Google · low cost
+                      </button>
+                      <button
+                        type="button"
+                        className={`settings-segment${activeProvider === "elevenlabs" ? " active" : ""}`}
+                        onClick={() => saveTTSProvider("elevenlabs")}
+                        disabled={saving || !authStatus.elevenLabsConfigured}
+                        title={authStatus.elevenLabsConfigured ? "" : "Add an ElevenLabs key first"}
+                      >
+                        ElevenLabs · premium
+                      </button>
+                    </div>
                   </div>
-                  <p className="settings-hint">
-                    Click a voice to select it, or the play button to hear a sample. During
-                    a session, toggle voice mode to speak with the interviewer aloud.
-                  </p>
-                  <VoicePicker
-                    currentVoiceId={prefs?.voiceId ?? ""}
-                    onSelect={saveVoice}
-                    speed={voiceSpeed}
-                  />
-                </div>
+
+                  <div className="settings-card">
+                    <div className="settings-card-head">
+                      <span className="material-symbols-outlined">record_voice_over</span>
+                      <h3 className="settings-card-title">Interviewer Voice</h3>
+                    </div>
+                    <p className="settings-hint">
+                      Click a voice to select it, or the play button to hear a sample. During
+                      a session, toggle voice mode to speak with the interviewer aloud.
+                    </p>
+                    <VoicePicker
+                      provider={activeProvider}
+                      currentVoiceId={
+                        (activeProvider === "elevenlabs"
+                          ? prefs?.voiceId
+                          : prefs?.googleVoiceId) ?? ""
+                      }
+                      onSelect={saveVoice}
+                      speed={voiceSpeed}
+                    />
+                  </div>
+
+                  <div className="settings-card">
+                    <div className="settings-card-head">
+                      <span className="material-symbols-outlined">speed</span>
+                      <h3 className="settings-card-title">Speaking speed</h3>
+                    </div>
+                    <p className="settings-hint">
+                      How fast the interviewer talks. Pitch stays natural at any speed — preview a
+                      voice above to hear the change.
+                    </p>
+                    <div className="settings-slider-row">
+                      <input
+                        type="range"
+                        className="settings-slider"
+                        min={0.5}
+                        max={2}
+                        step={0.05}
+                        value={voiceSpeed}
+                        onChange={(e) => setVoiceSpeed(Number(e.target.value))}
+                        onPointerUp={saveVoiceSpeed}
+                        onKeyUp={saveVoiceSpeed}
+                        disabled={saving || !prefs}
+                      />
+                      <span className="settings-slider-value">{voiceSpeed.toFixed(2)}×</span>
+                      <button
+                        type="button"
+                        className="settings-link-btn"
+                        onClick={() => {
+                          setVoiceSpeed(1);
+                          savePrefs({ voiceSpeed: 1 }, "Voice speed saved.");
+                        }}
+                        disabled={saving || !prefs || voiceSpeed === 1}
+                      >
+                        Reset
+                      </button>
+                    </div>
+                  </div>
+                </>
               ) : (
                 <div className="settings-card settings-card-placeholder">
                   <span className="material-symbols-outlined">record_voice_over</span>
-                  <h3 className="settings-card-title">Add an ElevenLabs key first</h3>
+                  <h3 className="settings-card-title">Add a voice key first</h3>
                   <p className="settings-hint">
-                    Spoken interviews need an ElevenLabs API key. Add one under{" "}
+                    Spoken interviews need a Google Cloud or ElevenLabs API key. Add one under{" "}
                     <button className="settings-link-btn" onClick={() => goTo("api-keys")}>
                       API Keys
                     </button>{" "}
                     to choose a voice.
                   </p>
-                </div>
-              )}
-              {authStatus.elevenLabsConfigured && (
-                <div className="settings-card">
-                  <div className="settings-card-head">
-                    <span className="material-symbols-outlined">speed</span>
-                    <h3 className="settings-card-title">Speaking speed</h3>
-                  </div>
-                  <p className="settings-hint">
-                    How fast the interviewer talks. Pitch stays natural at any speed — preview a
-                    voice above to hear the change.
-                  </p>
-                  <div className="settings-slider-row">
-                    <input
-                      type="range"
-                      className="settings-slider"
-                      min={0.5}
-                      max={2}
-                      step={0.05}
-                      value={voiceSpeed}
-                      onChange={(e) => setVoiceSpeed(Number(e.target.value))}
-                      onPointerUp={saveVoiceSpeed}
-                      onKeyUp={saveVoiceSpeed}
-                      disabled={saving || !prefs}
-                    />
-                    <span className="settings-slider-value">{voiceSpeed.toFixed(2)}×</span>
-                    <button
-                      type="button"
-                      className="settings-link-btn"
-                      onClick={() => {
-                        setVoiceSpeed(1);
-                        savePrefs({ voiceSpeed: 1 }, "Voice speed saved.");
-                      }}
-                      disabled={saving || !prefs || voiceSpeed === 1}
-                    >
-                      Reset
-                    </button>
-                  </div>
                 </div>
               )}
             </>

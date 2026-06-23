@@ -25,6 +25,8 @@ export function ListSessions():Promise<Array<models.SessionSummary>>;
 
 export function ListVoices():Promise<Array<models.Voice>>;
 
+export function PreviewVoice(arg1:string):Promise<string>;
+
 export function SendMessage(arg1:string):Promise<string>;
 
 export function SetAPIKey(arg1:string,arg2:string):Promise<void>;

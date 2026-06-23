@@ -23,8 +23,10 @@ export default function SetupPage({ authStatus, onAuthChange, onContinue }: Prop
 
   const [orKey, setOrKey] = useState("");
   const [elKey, setElKey] = useState("");
+  const [gKey, setGKey] = useState("");
   const [showOr, setShowOr] = useState(false);
   const [showEl, setShowEl] = useState(false);
+  const [showG, setShowG] = useState(false);
   const [checkState, setCheckState] = useState<CheckState>(
     preConfigured ? "success" : "idle"
   );
@@ -69,6 +71,7 @@ export default function SetupPage({ authStatus, onAuthChange, onContinue }: Prop
     try {
       if (orKey.trim()) await SetAPIKey("openrouter", orKey.trim());
       if (elKey.trim()) await SetAPIKey("elevenlabs", elKey.trim());
+      if (gKey.trim()) await SetAPIKey("google", gKey.trim());
       const status = await GetAuthStatus();
       onAuthChange(status);
 
@@ -200,6 +203,42 @@ export default function SetupPage({ authStatus, onAuthChange, onContinue }: Prop
               </button>
             </div>
             {authStatus.elevenLabsConfigured && !elKey.trim() && (
+              <p className="setup-configured-hint">
+                <span className="material-symbols-outlined">check_circle</span>
+                Already configured — leave blank to keep
+              </p>
+            )}
+          </div>
+
+          {/* Google Cloud TTS key (optional, low-cost default voice) */}
+          <div className="setup-field">
+            <label className="setup-label" htmlFor="g-key">
+              Google Cloud API Key
+            </label>
+            <div className="setup-input-wrap">
+              <input
+                autoComplete="off"
+                className="setup-input"
+                id="g-key"
+                placeholder="AIza..."
+                type={showG ? "text" : "password"}
+                value={gKey}
+                onChange={(e) => {
+                  setGKey(e.target.value);
+                  resetCheck();
+                }}
+              />
+              <button
+                className="setup-vis-btn"
+                onClick={() => setShowG((v) => !v)}
+                type="button"
+              >
+                <span className="material-symbols-outlined">
+                  {showG ? "visibility" : "visibility_off"}
+                </span>
+              </button>
+            </div>
+            {authStatus.googleConfigured && !gKey.trim() && (
               <p className="setup-configured-hint">
                 <span className="material-symbols-outlined">check_circle</span>
                 Already configured — leave blank to keep

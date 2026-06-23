@@ -34,14 +34,20 @@ type SessionSummary struct {
 type AuthStatus struct {
 	OpenRouterConfigured bool `json:"openRouterConfigured"`
 	ElevenLabsConfigured bool `json:"elevenLabsConfigured"`
+	GoogleConfigured     bool `json:"googleConfigured"`
 }
 
 // Preferences holds user-configurable settings persisted in SQLite.
 type Preferences struct {
 	CaptureIntervalMs int     `json:"captureIntervalMs"` // default 3000
 	Model             string  `json:"model"`             // default "anthropic/claude-sonnet-4"
-	VoiceID           string  `json:"voiceId"`
-	VoiceSpeed        float64 `json:"voiceSpeed"` // TTS playback rate, default 1.0 (range ~0.5–2.0)
+	VoiceSpeed        float64 `json:"voiceSpeed"`        // TTS playback rate, default 1.0 (range ~0.5–2.0)
+
+	// Text-to-speech provider + the voice selected for each. Voices are
+	// provider-specific, so each provider remembers its own choice.
+	TTSProvider   string `json:"ttsProvider"`   // "google" (default) or "elevenlabs"
+	VoiceID       string `json:"voiceId"`       // ElevenLabs voice_id
+	GoogleVoiceID string `json:"googleVoiceId"` // Google voice name, e.g. "en-US-Neural2-F"
 
 	// Capture region. Coordinates are fractions (0..1) of the chosen display;
 	// a zero RegionW means "capture the full display".

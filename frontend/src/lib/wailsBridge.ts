@@ -13,6 +13,7 @@ export {
   ListDisplays,
   ListSessions,
   ListVoices,
+  PreviewVoice,
   SendMessage,
   SetAPIKey,
   SetCaptureRegion,

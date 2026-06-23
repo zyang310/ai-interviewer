@@ -42,7 +42,7 @@ The app is **screen-driven** — the problem is never sent as text; it lives in 
 6. Frontend renders the reply in chat (the overlay shows the latest interviewer line).
 7. Session transcript is logged to SQLite.
 
-**Built (Phase 2 — voice, non-streaming v1):** click-to-toggle mic → frontend records audio (`MediaRecorder`, `useVoiceRecorder`) → base64 → Go `TranscribeAudio` → ElevenLabs Scribe v2 (STT) → text → the same loop above → AI reply → (when "voice mode" is on) Go `SynthesizeSpeech` → ElevenLabs Flash v2.5 (TTS) → base64 MP3 → frontend plays the full clip (`useAudioPlayer`). Streaming TTS (chunked via Wails events) and streaming AI text are deferred — see [voice-integration-plan.md](voice-integration-plan.md).
+**Built (Phase 2 — voice, non-streaming v1):** click-to-toggle mic → frontend records audio (`MediaRecorder`, `useVoiceRecorder`) → re-encoded to 16 kHz mono WAV (`audioToWav`) → base64 → Go `TranscribeAudio` → active STT provider (ElevenLabs Scribe if its key is set, else Google STT) → text → the same loop above → AI reply → (when "voice mode" is on) Go `SynthesizeSpeech` → active TTS provider (Google by default, or ElevenLabs Flash) → base64 MP3 → frontend plays the full clip (`useAudioPlayer`). Each provider is self-sufficient (one key = full voice); with both keys the default is the optimal combo, Scribe STT + Google TTS. Streaming TTS (chunked via Wails events) and streaming AI text are deferred — see [voice-integration-plan.md](voice-integration-plan.md).
 
 ## Key Go bindings (exposed to frontend)
 
@@ -82,11 +82,15 @@ func (a *App) UpdatePreferences(prefs models.Preferences) error
 // Models
 func (a *App) ListAvailableModels() ([]models.Model, error)  // OpenRouter catalog for the picker (cached ~1h)
 
-// Voice — ElevenLabs (built, non-streaming v1; all processing in Go, frontend only records/plays audio)
-func (a *App) TranscribeAudio(audioBase64, mimeType string) (string, error) // Scribe v2 (STT)
-func (a *App) SynthesizeSpeech(text string) (string, error)                 // Flash v2.5 (TTS) → base64 MP3
-func (a *App) ListVoices() ([]models.Voice, error)                          // /v1/voices for the picker
-// Saving a voice needs no binding — VoicePicker writes Preferences.VoiceID via UpdatePreferences.
+// Voice — STT and TTS each resolve a provider (Google or ElevenLabs) via the
+// sttProvider/ttsProvider interfaces (non-streaming v1; all processing in Go, frontend only records/plays audio)
+func (a *App) TranscribeAudio(audioBase64, mimeType string) (string, error) // active STT: Scribe if EL key set, else Google
+func (a *App) SynthesizeSpeech(text string) (string, error)                 // active TTS provider → base64 MP3
+func (a *App) ListVoices() ([]models.Voice, error)                          // active provider's voice catalog
+func (a *App) PreviewVoice(voiceID string) (string, error)                  // synthesize a sample (providers w/o preview URLs)
+// Saving a voice needs no binding — VoicePicker writes Preferences.VoiceID /
+// GoogleVoiceID (and TTSProvider) via UpdatePreferences. activeTTS() in app.go
+// picks the provider+voice, falling back to whichever key is configured.
 ```
 
 ## AI interviewer system prompt (core behavior)
@@ -134,9 +138,20 @@ Content-Type: multipart/form-data
 
 `GET https://api.elevenlabs.io/v1/voices` → `{ voices: [ { voice_id, name, category, preview_url } ] }`, cached ~1h. Feeds the Settings `VoicePicker`; the chosen id persists to `Preferences.VoiceID`.
 
+## Google Cloud reference (alternate provider, default for TTS)
+
+`internal/googletts` mirrors `internal/voice`'s surface so the two are interchangeable behind app.go's `ttsProvider`/`sttProvider` interfaces. Google uses plain API-key auth (`?key=`), so it reuses the existing key-storage pattern.
+
+- **Synthesize:** `POST https://texttospeech.googleapis.com/v1/text:synthesize?key=KEY` with `{ "input": { "text" }, "voice": { "languageCode": <derived from voice name>, "name": <voiceID> }, "audioConfig": { "audioEncoding": "MP3" } }`. Response is JSON `{ "audioContent": "<base64 mp3>" }` — decoded to raw bytes so it matches ElevenLabs' contract.
+- **Voices:** `GET .../v1/voices?key=KEY`, cached ~1h. Filtered to English locales and the high-quality families (Neural2, Chirp3-HD, WaveNet, Studio) and sorted. **No preview URLs** — `Voice.PreviewURL` is empty and the picker uses `PreviewVoice` to synthesize a sample on demand.
+- **Transcribe (STT):** `POST https://speech.googleapis.com/v1/speech:recognize?key=KEY` with `{ "config": { "encoding": "LINEAR16", "sampleRateHertz": 16000, "languageCode": "en-US", "enableAutomaticPunctuation": true }, "audio": { "content": <base64> } }`; transcripts in `results[].alternatives[0].transcript` are joined.
+- Default voice: `en-US-Neural2-F`.
+
+**Audio format for STT:** the frontend re-encodes every recording to **16 kHz mono WAV (LINEAR16)** in the browser ([`audioToWav.ts`](../frontend/src/lib/audioToWav.ts), via `decodeAudioData` + `OfflineAudioContext`) before upload. This is required because WKWebView's `MediaRecorder` emits AAC/MP4, which Google STT rejects; WAV is accepted by both Google and ElevenLabs Scribe, so one capture path serves both providers.
+
 ### Cost model
 
-TTS is billed per character of input text; STT per minute of audio. For a typical session (30-60 min, short 1-3 sentence interviewer turns) costs are minimal. Keep responses short to optimize both latency and cost.
+TTS is billed per character of input text; STT per minute of audio. **Google Neural2 (~$16/1M chars, with a free monthly tier) is ~10× cheaper than ElevenLabs Flash**, which is why Google is the default TTS provider; ElevenLabs is the premium option. For a typical session (30-60 min, short 1-3 sentence interviewer turns) costs are minimal either way. Keep responses short to optimize both latency and cost. **Speed** is applied client-side (`audio.playbackRate` + `preservesPitch`), not via either provider's API.
 
 ## OpenRouter API reference
 

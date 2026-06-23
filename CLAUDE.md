@@ -14,7 +14,7 @@ A desktop app that runs a **live AI mock coding interview**. The user codes in t
 - **Go backend** — screen capture, all external API calls, SQLite, window/overlay control.
 - **Frontend** — React + TypeScript + Vite. **Styling is plain CSS with Material Design 3 tokens (CSS variables) — no Tailwind.**
 - **AI** — OpenRouter (vision models) via the Go backend.
-- **Voice** — ElevenLabs via the Go backend: Scribe (STT) + Flash (TTS), **non-streaming** v1. The frontend only records the mic (`MediaRecorder`) and plays returned audio; all API calls happen in Go.
+- **Voice** — via the Go backend, **non-streaming** v1. Both STT and TTS resolve a provider behind app.go's `sttProvider`/`ttsProvider` interfaces — **Google** (default voice, low-cost) and **ElevenLabs** (Scribe STT + Flash TTS, premium). Each provider is self-sufficient (one key = full voice); the Settings toggle is **voice-only** (STT auto-prefers Scribe when its key is present, else Google), so with both keys the default is the optimal combo: Scribe STT + Google TTS. The mic records via `MediaRecorder` and is re-encoded to 16 kHz mono WAV client-side (`audioToWav`, since Google STT can't ingest WKWebView's AAC); all API calls happen in Go. Playback speed is applied client-side via `playbackRate`.
 - **Deps** — `kbinani/screenshot` + `golang.org/x/image` (capture), `mattn/go-sqlite3` (storage), `google/uuid`.
 
 ## Codebase map (where things live)
@@ -25,6 +25,7 @@ A desktop app that runs a **live AI mock coding interview**. The user codes in t
 | `app.go` | **All** Wails-bound methods. Kept thin — delegates to `internal/`. |
 | `internal/ai/` | OpenRouter client (`client.go`) + interviewer system prompt (`prompts.go`). |
 | `internal/voice/` | ElevenLabs client (`client.go`): Scribe STT, Flash TTS, voice catalog. |
+| `internal/googletts/` | Google Cloud client (`client.go`): TTS (synthesize + English voice catalog) **and** STT (`Transcribe`). Satisfies the same `Synthesize`/`ListVoices`/`Transcribe` shapes as `internal/voice`. |
 | `internal/capture/` | Screen capture + region cropping. |
 | `internal/store/` | SQLite: sessions, preferences, API keys. |
 | `internal/models/` | Structs that cross the Wails boundary (Session, Message, Preferences, AuthStatus, Model, Voice). |
