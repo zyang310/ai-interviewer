@@ -140,9 +140,15 @@ func (c *Client) Transcribe(ctx context.Context, audio []byte, mimeType string) 
 
 	payload := map[string]any{
 		"config": map[string]any{
-			"encoding":                   "LINEAR16",
-			"sampleRateHertz":            sttSampleRate,
-			"languageCode":               "en-US",
+			"encoding":        "LINEAR16",
+			"sampleRateHertz": sttSampleRate,
+			"languageCode":    "en-US",
+			// latest_long is tuned for spontaneous, conversational speech (interview
+			// answers, tradeoff discussions), not just brief commands; useEnhanced opts
+			// into the higher-accuracy variant. Both improve correctness over the
+			// generic default. (Sync recognize still caps at ~60s per clip.)
+			"model":                      "latest_long",
+			"useEnhanced":                true,
 			"enableAutomaticPunctuation": true,
 		},
 		"audio": map[string]any{
