@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   SetAPIKey,
+  DeleteAPIKey,
   GetAuthStatus,
   GetPreferences,
   UpdatePreferences,
@@ -9,6 +10,14 @@ import {
 import ModelPicker from "./ModelPicker";
 import VoicePicker from "./VoicePicker";
 import "./Settings.css";
+
+type KeyProvider = "openrouter" | "elevenlabs" | "google";
+
+const PROVIDER_LABELS: Record<KeyProvider, string> = {
+  openrouter: "OpenRouter",
+  elevenlabs: "ElevenLabs",
+  google: "Google Cloud",
+};
 
 // Settings is a full page (not a modal). A left "Configuration" sidebar switches
 // between sections; the right pane renders the active section. Navigation in/out
@@ -150,19 +159,19 @@ export default function Settings({ authStatus, onAuthChange, onPrefsChange }: Pr
     return savePrefs({ voiceSpeed }, "Voice speed saved.");
   }
 
-  async function saveKey(provider: "openrouter" | "elevenlabs" | "google") {
-    const keys = { openrouter: openRouterKey, elevenlabs: elevenLabsKey, google: googleKey };
-    const setters = {
-      openrouter: setOpenRouterKey,
-      elevenlabs: setElevenLabsKey,
-      google: setGoogleKey,
-    };
-    const labels = {
-      openrouter: "OpenRouter",
-      elevenlabs: "ElevenLabs",
-      google: "Google Cloud",
-    };
-    const key = keys[provider].trim();
+  const keyInputs: Record<KeyProvider, string> = {
+    openrouter: openRouterKey,
+    elevenlabs: elevenLabsKey,
+    google: googleKey,
+  };
+  const keySetters: Record<KeyProvider, (v: string) => void> = {
+    openrouter: setOpenRouterKey,
+    elevenlabs: setElevenLabsKey,
+    google: setGoogleKey,
+  };
+
+  async function saveKey(provider: KeyProvider) {
+    const key = keyInputs[provider].trim();
     if (!key) return;
     setSaving(true);
     setError("");
@@ -170,8 +179,26 @@ export default function Settings({ authStatus, onAuthChange, onPrefsChange }: Pr
     try {
       await SetAPIKey(provider, key);
       onAuthChange(await GetAuthStatus());
-      setters[provider]("");
-      setSuccess(`${labels[provider]} API key saved.`);
+      keySetters[provider]("");
+      setSuccess(`${PROVIDER_LABELS[provider]} API key saved.`);
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // Remove a stored key. The backend nils the matching client, so STT/TTS
+  // provider resolution falls back to whatever remains configured.
+  async function removeKey(provider: KeyProvider) {
+    setSaving(true);
+    setError("");
+    setSuccess("");
+    try {
+      await DeleteAPIKey(provider);
+      onAuthChange(await GetAuthStatus());
+      keySetters[provider]("");
+      setSuccess(`${PROVIDER_LABELS[provider]} API key removed.`);
     } catch (e: any) {
       setError(e?.message || String(e));
     } finally {
@@ -286,6 +313,15 @@ export default function Settings({ authStatus, onAuthChange, onPrefsChange }: Pr
                   ) : (
                     <span className="status-missing">Not configured</span>
                   )}
+                  {authStatus.openRouterConfigured && (
+                    <button
+                      className="settings-link-btn settings-remove-btn"
+                      onClick={() => removeKey("openrouter")}
+                      disabled={saving}
+                    >
+                      Remove
+                    </button>
+                  )}
                 </div>
                 <div className="settings-field-row">
                   <input
@@ -325,6 +361,15 @@ export default function Settings({ authStatus, onAuthChange, onPrefsChange }: Pr
                     <span className="status-ok">Configured</span>
                   ) : (
                     <span className="status-missing">Not configured</span>
+                  )}
+                  {authStatus.elevenLabsConfigured && (
+                    <button
+                      className="settings-link-btn settings-remove-btn"
+                      onClick={() => removeKey("elevenlabs")}
+                      disabled={saving}
+                    >
+                      Remove
+                    </button>
                   )}
                 </div>
                 <div className="settings-field-row">
@@ -374,6 +419,15 @@ export default function Settings({ authStatus, onAuthChange, onPrefsChange }: Pr
                     <span className="status-ok">Configured</span>
                   ) : (
                     <span className="status-missing">Not configured</span>
+                  )}
+                  {authStatus.googleConfigured && (
+                    <button
+                      className="settings-link-btn settings-remove-btn"
+                      onClick={() => removeKey("google")}
+                      disabled={saving}
+                    >
+                      Remove
+                    </button>
                   )}
                 </div>
                 <div className="settings-field-row">

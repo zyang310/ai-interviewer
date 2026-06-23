@@ -50,6 +50,15 @@ func (db *DB) SetAPIKey(provider, value string) error {
 	return db.setPref(key, value)
 }
 
+// DeleteAPIKey removes a stored API key for the given provider.
+func (db *DB) DeleteAPIKey(provider string) error {
+	key := providerKey(provider)
+	if key == "" {
+		return fmt.Errorf("store: unknown provider %q", provider)
+	}
+	return db.deletePref(key)
+}
+
 // GetPreferences returns all user preferences, using defaults for missing keys.
 func (db *DB) GetPreferences() (models.Preferences, error) {
 	p := models.Preferences{
@@ -185,6 +194,14 @@ func (db *DB) setPref(key, value string) error {
 	)
 	if err != nil {
 		return fmt.Errorf("store: set pref %q: %w", key, err)
+	}
+	return nil
+}
+
+// deletePref removes a single preference row by key. No error if it's absent.
+func (db *DB) deletePref(key string) error {
+	if _, err := db.conn.Exec(`DELETE FROM preferences WHERE key = ?`, key); err != nil {
+		return fmt.Errorf("store: delete pref %q: %w", key, err)
 	}
 	return nil
 }

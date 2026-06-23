@@ -122,6 +122,24 @@ func (a *App) SetAPIKey(provider, key string) error {
 	return nil
 }
 
+// DeleteAPIKey removes the stored key for the given provider ("openrouter",
+// "elevenlabs", or "google") and deactivates its client immediately, so STT/TTS
+// provider resolution falls back to whatever remains configured. No restart needed.
+func (a *App) DeleteAPIKey(provider string) error {
+	if err := a.db.DeleteAPIKey(provider); err != nil {
+		return err
+	}
+	switch provider {
+	case "openrouter":
+		a.aiClient = nil
+	case "elevenlabs":
+		a.voiceClient = nil
+	case "google":
+		a.googleTTS = nil
+	}
+	return nil
+}
+
 // GetAuthStatus reports which API providers currently have keys configured.
 func (a *App) GetAuthStatus() models.AuthStatus {
 	dbKey, _ := a.db.GetAPIKey("openrouter")

@@ -164,6 +164,19 @@
   margin: 12px 0 0;
 }
 
+/* "Remove" key action — a subtle destructive link sitting after the status. */
+.settings-remove-btn {
+  margin-left: 12px;
+  color: var(--error);
+  font-size: 13px;
+}
+
+.settings-remove-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+  text-decoration: none;
+}
+
 /* ── Form fields ─────────────────────────────────────────────────────────── */
 .settings-input {
   padding: 9px 12px;

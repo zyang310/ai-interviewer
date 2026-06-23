@@ -2,6 +2,7 @@
 // Components should import from here, never from wailsjs/ directly.
 
 export {
+  DeleteAPIKey,
   EndSession,
   EnterOverlayMode,
   ExitOverlayMode,
