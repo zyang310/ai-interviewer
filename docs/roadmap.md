@@ -57,5 +57,23 @@
 
 - [ ] Difficulty adaptation (AI adjusts hint level based on progress)
 - [ ] Timer / time pressure mode
-- [ ] Multi-problem interview sets (simulate a full interview round)
+- [ ] Multi-problem interview sets (simulate a full interview round) — pairs well with Phase 6
 - [ ] ElevenLabs voice cloning (user uploads an interviewer voice sample)
+
+### Phase 6 — Company Practice mode (opt-in, additive) — ☐ Planned
+
+> Detailed, phased plan: [company-practice-plan.md](company-practice-plan.md).
+
+Practice for a specific company: the AI greets you in character, assigns a high-frequency LeetCode
+problem (by reference — title + difficulty + link, never the problem text, so the screen-driven
+invariant holds), asks you to open it, then runs the normal screen-driven interview flavored by
+that company's style. **The default Hub flow is unchanged.**
+
+- [ ] Phase 0 — curate company question metadata (top-by-frequency, from
+      [liquidslr/interview-company-wise-problems](https://github.com/liquidslr/interview-company-wise-problems)) + author `companyProfiles` style map
+- [ ] Phase 1 — `internal/problems` package, `models.Problem`, `BuildCompanySystemPrompt`,
+      `StartCompanySession` (struct return) + templated opener, bound methods, `OpenURL`
+- [ ] Phase 2 — new "Company Practice" pill-nav tab: picker, difficulty filter, sort by frequency,
+      randomize, "Open on LeetCode"; reuse the active-session UI
+- [ ] Phase 3 — polish: persist last company/difficulty, session-row persistence, optional
+      AI-generated opener, tests + docs
