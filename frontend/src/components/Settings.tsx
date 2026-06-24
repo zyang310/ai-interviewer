@@ -3,10 +3,14 @@ import {
   SetAPIKey,
   DeleteAPIKey,
   GetAuthStatus,
+  GetHotkeyStatus,
   GetPreferences,
+  OpenInputMonitoringSettings,
   UpdatePreferences,
   models,
+  hotkey,
 } from "../lib/wailsBridge";
+import { comboFromKeyboardEvent, bareModifierFromCode, prettyHotkey } from "../lib/hotkey";
 import ModelPicker from "./ModelPicker";
 import VoicePicker from "./VoicePicker";
 import "./Settings.css";
@@ -22,7 +26,14 @@ const PROVIDER_LABELS: Record<KeyProvider, string> = {
 // Settings is a full page (not a modal). A left "Configuration" sidebar switches
 // between sections; the right pane renders the active section. Navigation in/out
 // is handled by the app's pill-nav, so there's no close button here.
-type Section = "general" | "models" | "api-keys" | "voice" | "capture" | "privacy";
+type Section =
+  | "general"
+  | "models"
+  | "api-keys"
+  | "voice"
+  | "push-to-talk"
+  | "capture"
+  | "privacy";
 
 interface NavItem {
   id: Section;
@@ -35,6 +46,7 @@ const NAV: NavItem[] = [
   { id: "models", label: "Models", icon: "neurology" },
   { id: "api-keys", label: "API Keys", icon: "key" },
   { id: "voice", label: "Voice Calibration", icon: "record_voice_over" },
+  { id: "push-to-talk", label: "Voice Hotkey", icon: "keyboard" },
   { id: "capture", label: "Capture Prefs", icon: "settings_input_component" },
   { id: "privacy", label: "Privacy", icon: "security" },
 ];
@@ -67,6 +79,10 @@ export default function Settings({ authStatus, onAuthChange, onPrefsChange }: Pr
   const [voiceSpeed, setVoiceSpeed] = useState(1);
   // Active TTS provider; drives the voice picker and which voice field is saved.
   const [ttsProvider, setTtsProvider] = useState("google");
+  // Push-to-talk: capturing = listening for the next keypress to bind; hkStatus
+  // reports whether the global hook is live (drives the macOS permission hint).
+  const [capturing, setCapturing] = useState(false);
+  const [hkStatus, setHkStatus] = useState<hotkey.Status | null>(null);
 
   // Load preferences on mount.
   useEffect(() => {
@@ -80,7 +96,51 @@ export default function Settings({ authStatus, onAuthChange, onPrefsChange }: Pr
         setTtsProvider(p.ttsProvider || "google");
       })
       .catch(() => {});
+    refreshHotkeyStatus();
   }, []);
+
+  // Fetch the global push-to-talk hook status (best-effort; absent in browser
+  // preview). hookEnabled only flips true once the OS confirms the hook started.
+  async function refreshHotkeyStatus() {
+    try {
+      setHkStatus(await GetHotkeyStatus());
+    } catch {
+      // Wails runtime not present in browser preview.
+    }
+  }
+
+  // While capturing, listen window-wide for the next key (or bare modifier) and
+  // store it as the hotkey. Esc cancels. Capture-phase so it pre-empts inputs.
+  useEffect(() => {
+    if (!capturing) return;
+    let sawMainKey = false;
+    function onKeyDown(e: KeyboardEvent) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.key === "Escape") {
+        setCapturing(false);
+        return;
+      }
+      const combo = comboFromKeyboardEvent(e);
+      if (combo) {
+        sawMainKey = true;
+        void commitHotkey(combo);
+      }
+    }
+    function onKeyUp(e: KeyboardEvent) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (sawMainKey) return; // a combo already committed on key-down
+      const bare = bareModifierFromCode(e.code);
+      if (bare) void commitHotkey(bare);
+    }
+    window.addEventListener("keydown", onKeyDown, true);
+    window.addEventListener("keyup", onKeyUp, true);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown, true);
+      window.removeEventListener("keyup", onKeyUp, true);
+    };
+  }, [capturing]);
 
   function goTo(s: Section) {
     setSection(s);
@@ -152,6 +212,26 @@ export default function Settings({ authStatus, onAuthChange, onPrefsChange }: Pr
   function saveTTSProvider(provider: string) {
     setTtsProvider(provider);
     return savePrefs({ ttsProvider: provider }, "Voice provider saved.");
+  }
+
+  // Enable/disable push-to-talk, then re-read hook status (the backend starts or
+  // stops the global hook in UpdatePreferences). The delayed re-read catches the
+  // async hookEnabled confirmation (and, on macOS, a denied-permission outcome).
+  async function savePTTEnabled(on: boolean) {
+    await savePrefs(
+      { pushToTalkEnabled: on },
+      on ? "Push-to-talk enabled." : "Push-to-talk disabled."
+    );
+    refreshHotkeyStatus();
+    setTimeout(refreshHotkeyStatus, 600);
+  }
+
+  // Persist a captured hotkey and stop listening.
+  async function commitHotkey(spec: string) {
+    setCapturing(false);
+    await savePrefs({ pushToTalkKey: spec }, "Hotkey saved.");
+    refreshHotkeyStatus();
+    setTimeout(refreshHotkeyStatus, 600);
   }
 
   // Persist the slider's current value once the user finishes dragging.
@@ -561,6 +641,105 @@ export default function Settings({ authStatus, onAuthChange, onPrefsChange }: Pr
                     </button>{" "}
                     to choose a voice.
                   </p>
+                </div>
+              )}
+            </>
+          )}
+
+          {section === "push-to-talk" && (
+            <>
+              <header className="settings-head">
+                <h1>Voice Hotkey</h1>
+                <p>Press a hotkey to talk to the interviewer — even while your IDE is focused.</p>
+              </header>
+
+              <div className="settings-card">
+                <div className="settings-card-head">
+                  <span className="material-symbols-outlined">keyboard</span>
+                  <h3 className="settings-card-title">Enable voice hotkey</h3>
+                </div>
+                <p className="settings-hint">
+                  When on, press your hotkey to start recording and press it again to stop and
+                  send — same as the mic button. The key isn't captured exclusively, so it also
+                  reaches your editor; pick one your IDE ignores (a right-hand modifier or
+                  function key) if that's a problem.
+                </p>
+                <div className="settings-segmented">
+                  <button
+                    type="button"
+                    className={`settings-segment${prefs?.pushToTalkEnabled ? " active" : ""}`}
+                    onClick={() => savePTTEnabled(true)}
+                    disabled={saving || !prefs}
+                  >
+                    On
+                  </button>
+                  <button
+                    type="button"
+                    className={`settings-segment${prefs && !prefs.pushToTalkEnabled ? " active" : ""}`}
+                    onClick={() => savePTTEnabled(false)}
+                    disabled={saving || !prefs}
+                  >
+                    Off
+                  </button>
+                </div>
+              </div>
+
+              <div className="settings-card">
+                <div className="settings-card-head">
+                  <span className="material-symbols-outlined">keyboard_command_key</span>
+                  <h3 className="settings-card-title">Hotkey</h3>
+                </div>
+                <p className="settings-hint">
+                  Click “Set hotkey”, then press the key you want — tap it once to start and
+                  again to stop. A single right-hand modifier like{" "}
+                  <strong>Right ⌥ Option</strong> (the default) works best — tapping it types
+                  nothing and avoids the macOS key beep that a combo like Ctrl+Space causes (the
+                  key still reaches your editor). Press Esc to cancel.
+                </p>
+                <div className="settings-field-row">
+                  <button
+                    type="button"
+                    className={`btn ${capturing ? "btn-primary" : "btn-ghost"} settings-hotkey-btn`}
+                    onClick={() => setCapturing((c) => !c)}
+                    disabled={saving || !prefs}
+                  >
+                    {capturing ? "Press a key…" : prettyHotkey(prefs?.pushToTalkKey || "RightAlt")}
+                  </button>
+                  <button
+                    type="button"
+                    className="settings-link-btn"
+                    onClick={() => commitHotkey("RightAlt")}
+                    disabled={saving || !prefs}
+                  >
+                    Reset to default
+                  </button>
+                </div>
+              </div>
+
+              {hkStatus?.goos === "darwin" && prefs?.pushToTalkEnabled && (
+                <div className="settings-card">
+                  {hkStatus.hookEnabled ? (
+                    <p className="settings-hint">
+                      <span className="status-ok">●</span> Global hotkey is active.
+                    </p>
+                  ) : (
+                    <>
+                      <h3 className="settings-card-title">Enable Input Monitoring</h3>
+                      <p className="settings-hint">
+                        macOS needs permission for the global hotkey to fire while another app
+                        is focused. Open Input Monitoring, enable “AI Interviewer”, then relaunch
+                        the app. (The mic button works without this.)
+                      </p>
+                      <button
+                        type="button"
+                        className="btn btn-primary"
+                        onClick={() => OpenInputMonitoringSettings()}
+                        disabled={saving}
+                      >
+                        Open Input Monitoring settings
+                      </button>
+                    </>
+                  )}
                 </div>
               )}
             </>

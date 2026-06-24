@@ -26,6 +26,8 @@ const (
 	keyRegionH             = "region_h"
 	keySessionLimitMinutes = "session_limit_minutes"
 	keySoftWarningMinutes  = "soft_warning_minutes"
+	keyPushToTalkEnabled   = "push_to_talk_enabled"
+	keyPushToTalkKey       = "push_to_talk_key"
 )
 
 // GetAPIKey retrieves a stored API key. provider is "openrouter", "elevenlabs",
@@ -68,6 +70,8 @@ func (db *DB) GetPreferences() (models.Preferences, error) {
 		VoiceSpeed:          1.0,
 		SessionLimitMinutes: 30,
 		SoftWarningMinutes:  25,
+		PushToTalkEnabled:   true,
+		PushToTalkKey:       "RightAlt", // mirrors hotkey.DefaultSpec (bare modifier; no macOS key beep)
 	}
 
 	if v, err := db.getPref(keyCaptureIntervalMs); err == nil && v != "" {
@@ -128,6 +132,12 @@ func (db *DB) GetPreferences() (models.Preferences, error) {
 			p.SoftWarningMinutes = n
 		}
 	}
+	if v, err := db.getPref(keyPushToTalkEnabled); err == nil && v != "" {
+		p.PushToTalkEnabled = v == "1" || v == "true"
+	}
+	if v, err := db.getPref(keyPushToTalkKey); err == nil && v != "" {
+		p.PushToTalkKey = v
+	}
 	return p, nil
 }
 
@@ -169,7 +179,17 @@ func (db *DB) SavePreferences(p models.Preferences) error {
 	if err := db.setPref(keySessionLimitMinutes, strconv.Itoa(p.SessionLimitMinutes)); err != nil {
 		return err
 	}
-	return db.setPref(keySoftWarningMinutes, strconv.Itoa(p.SoftWarningMinutes))
+	if err := db.setPref(keySoftWarningMinutes, strconv.Itoa(p.SoftWarningMinutes)); err != nil {
+		return err
+	}
+	pttEnabled := "0"
+	if p.PushToTalkEnabled {
+		pttEnabled = "1"
+	}
+	if err := db.setPref(keyPushToTalkEnabled, pttEnabled); err != nil {
+		return err
+	}
+	return db.setPref(keyPushToTalkKey, p.PushToTalkKey)
 }
 
 // getPref fetches a single preference value by key. Returns "" if not found.

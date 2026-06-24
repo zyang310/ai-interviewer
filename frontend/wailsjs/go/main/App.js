@@ -22,6 +22,10 @@ export function GetAuthStatus() {
   return window['go']['main']['App']['GetAuthStatus']();
 }
 
+export function GetHotkeyStatus() {
+  return window['go']['main']['App']['GetHotkeyStatus']();
+}
+
 export function GetLatestScreenshot() {
   return window['go']['main']['App']['GetLatestScreenshot']();
 }
@@ -48,6 +52,10 @@ export function ListSessions() {
 
 export function ListVoices() {
   return window['go']['main']['App']['ListVoices']();
+}
+
+export function OpenInputMonitoringSettings() {
+  return window['go']['main']['App']['OpenInputMonitoringSettings']();
 }
 
 export function PreviewVoice(arg1) {

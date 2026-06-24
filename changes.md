@@ -1,4 +1,5 @@
-1. when clicking the set screen button, I want to remove the desktop app, because right not the app blocks where I want to set capture screen.
-2. In settings, the second save button is misaligned.
-3. Allows user to enter elevenlabs key and openrouter key, I have the .env so I don't have to enter the key during development each time.
-when I set capture screen, I want the screen to reflect the captured screen.
+1. You're right about the two log n still being order of log n. Take your time to think about the pivot point. Consider how the values in a rotated sorted array change around that pivot. What property does the pivot element uniquely have compared to its neighbors? Or, perhaps more generally, what property do elements in the left sorted portion have compared to elements in the right sorted portion that would help you find that split? 
+
+the thing above is what the interviewer returns, it is way too long, the interviewer would typically be a bit more concise. 
+
+2. AI Behavioral interviewer

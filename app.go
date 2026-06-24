@@ -11,6 +11,7 @@ import (
 	"ai-interviewer/internal/ai"
 	"ai-interviewer/internal/capture"
 	"ai-interviewer/internal/googletts"
+	"ai-interviewer/internal/hotkey"
 	"ai-interviewer/internal/models"
 	"ai-interviewer/internal/store"
 	"ai-interviewer/internal/voice"
@@ -35,6 +36,7 @@ type App struct {
 	aiClient    *ai.Client
 	voiceClient *voice.Client     // ElevenLabs: STT + TTS
 	googleTTS   *googletts.Client // Google Cloud TTS
+	hotkey      *hotkey.Listener  // global push-to-talk keyboard hook
 	active      *activeSession
 }
 
@@ -49,6 +51,7 @@ func NewApp() (*App, error) {
 	app := &App{
 		db:       db,
 		capturer: capture.NewCapturer(),
+		hotkey:   hotkey.New(),
 	}
 
 	// Restore the AI client from the persisted OpenRouter key (if any).
@@ -91,14 +94,32 @@ func (a *App) applySavedRegion() {
 // startup is called by Wails when the application is ready.
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
+	a.startHotkeyFromPrefs()
 }
 
 // shutdown is called by Wails when the application is closing.
 func (a *App) shutdown(ctx context.Context) {
+	a.hotkey.Shutdown()
 	a.capturer.Stop()
 	if err := a.db.Close(); err != nil {
 		log.Printf("warning: closing database: %v", err)
 	}
+}
+
+// startHotkeyFromPrefs applies the saved push-to-talk preferences to the global
+// hook. The hook starts on first enable and is never restarted — enabling,
+// disabling, and rebinding all flow through Apply, which swaps guarded fields on
+// the running hook. Best-effort — a bad/empty key falls back to the default.
+func (a *App) startHotkeyFromPrefs() {
+	prefs, err := a.db.GetPreferences()
+	if err != nil {
+		return
+	}
+	spec, perr := hotkey.ParseSpec(prefs.PushToTalkKey)
+	if perr != nil {
+		spec, _ = hotkey.ParseSpec(hotkey.DefaultSpec)
+	}
+	a.hotkey.Apply(a.ctx, prefs.PushToTalkEnabled, spec)
 }
 
 // ---------------------------------------------------------------------------
@@ -360,7 +381,21 @@ func (a *App) UpdatePreferences(prefs models.Preferences) error {
 	}
 	// Keep the capturer in sync with any region/display change.
 	a.capturer.SetRegion(prefs.CaptureDisplay, prefs.RegionX, prefs.RegionY, prefs.RegionW, prefs.RegionH)
+	// Enable/disable/re-key the global push-to-talk hook to match the new prefs.
+	a.startHotkeyFromPrefs()
 	return nil
+}
+
+// GetHotkeyStatus reports the global push-to-talk hook state so the UI can
+// surface the macOS Input-Monitoring permission hint when it isn't running.
+func (a *App) GetHotkeyStatus() hotkey.Status {
+	return a.hotkey.Status()
+}
+
+// OpenInputMonitoringSettings opens macOS System Settings at the Input
+// Monitoring pane, where the user grants the permission the global hotkey needs.
+func (a *App) OpenInputMonitoringSettings() {
+	runtime.BrowserOpenURL(a.ctx, "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent")
 }
 
 // ---------------------------------------------------------------------------

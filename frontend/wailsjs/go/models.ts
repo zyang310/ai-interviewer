@@ -25,6 +25,33 @@ export namespace capture {
 
 }
 
+export namespace hotkey {
+	
+	export class Status {
+	    running: boolean;
+	    hookEnabled: boolean;
+	    spec: string;
+	    label: string;
+	    goos: string;
+	    error?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Status(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.running = source["running"];
+	        this.hookEnabled = source["hookEnabled"];
+	        this.spec = source["spec"];
+	        this.label = source["label"];
+	        this.goos = source["goos"];
+	        this.error = source["error"];
+	    }
+	}
+
+}
+
 export namespace models {
 	
 	export class AuthStatus {
@@ -124,6 +151,8 @@ export namespace models {
 	    regionH: number;
 	    sessionLimitMinutes: number;
 	    softWarningMinutes: number;
+	    pushToTalkEnabled: boolean;
+	    pushToTalkKey: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new Preferences(source);
@@ -144,6 +173,8 @@ export namespace models {
 	        this.regionH = source["regionH"];
 	        this.sessionLimitMinutes = source["sessionLimitMinutes"];
 	        this.softWarningMinutes = source["softWarningMinutes"];
+	        this.pushToTalkEnabled = source["pushToTalkEnabled"];
+	        this.pushToTalkKey = source["pushToTalkKey"];
 	    }
 	}
 	export class Session {

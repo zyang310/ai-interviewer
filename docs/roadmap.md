@@ -7,7 +7,7 @@
 - **Phase 1 (screen-driven, typed core loop) is built**, and the UI has been redesigned onto a Material Design 3 dark theme (floating pill nav, idle "Ready to Begin?" hub, active capture + chat).
 - The **always-on-top floating overlay** bar (a Phase 4 item) was built early — entered via the "Compact" button during a session.
 - **Voice (Phase 2) is built (non-streaming v1).** Click-to-toggle mic → ElevenLabs Scribe (STT) → the normal interview loop → ElevenLabs Flash (TTS) spoken reply when "voice mode" is on. Voice selection lives in Settings; the overlay's "Live" indicator + mic are wired for real. Streaming TTS/AI-text is deferred.
-- **Next up: Phase 3 — UX** (session history view, keyboard shortcuts incl. global push-to-talk).
+- **Phase 3 — UX** is in progress: **a global voice hotkey is built** (configurable, default `Right ⌥ Option`; press to start, press again to stop); the session history view is still a placeholder.
 
 ## Implementation phases
 
@@ -41,7 +41,7 @@
 - [x] Display / capture-region selection
 - [x] Model picker — searchable list in Settings (vision-first, free models flagged, per-1M pricing) that persists to `Preferences.Model`; see [model-picker-plan.md](model-picker-plan.md)
 - [ ] Session history view (bindings `ListSessions` / `GetSessionTranscript` exist; the History tab is a placeholder)
-- [ ] Keyboard shortcuts (push-to-talk, end session, toggle capture)
+- ◑ Keyboard shortcuts — **global voice hotkey built**: press a configurable hotkey (default `Right ⌥ Option`) to start recording, press again to stop & send — works while the IDE is focused. Backend OS hook (`internal/hotkey` via `robotn/gohook`) → `ptt:down`/`ptt:up` Wails events (frontend toggles on down); config + macOS Input Monitoring hint in Settings → Voice Hotkey. End-session / toggle-capture shortcuts still TODO.
 - ~~Problem bank with JSON seed + problem selector~~ — **dropped (screen-driven design)**
 
 ### Phase 4 — Auth and polish — ◑ Partial

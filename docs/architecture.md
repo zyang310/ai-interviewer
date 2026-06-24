@@ -44,6 +44,8 @@ The app is **screen-driven** — the problem is never sent as text; it lives in 
 
 **Built (Phase 2 — voice, non-streaming v1):** click-to-toggle mic → frontend records audio (`MediaRecorder`, `useVoiceRecorder`) → re-encoded to 16 kHz mono WAV (`audioToWav`) → base64 → Go `TranscribeAudio` → active STT provider (ElevenLabs Scribe if its key is set, else Google STT) → text → the same loop above → AI reply → (when "voice mode" is on) Go `SynthesizeSpeech` → active TTS provider (Google by default, or ElevenLabs Flash) → base64 MP3 → frontend plays the full clip (`useAudioPlayer`). Each provider is self-sufficient (one key = full voice); with both keys the default is the optimal combo, Scribe STT + Google TTS. Streaming TTS (chunked via Wails events) and streaming AI text are deferred — see [voice-integration-plan.md](voice-integration-plan.md).
 
+**Built (Phase 3 — global voice hotkey):** in addition to the click-to-toggle mic, a configurable global hotkey **toggles** recording — press once to start, press again to stop & send (same as the mic button). A backend OS-level keyboard hook (`internal/hotkey`, `robotn/gohook`) runs on a libuiohook C thread and emits a `ptt:down` Wails event per press; `App.tsx` subscribes via `EventsOn`, toggling the existing `useVoiceRecorder` on each press and barging in over any TTS when recording starts. The hook is **passive** — it observes the keystroke but does not consume it, so the key still reaches the focused IDE (pick one it ignores; a tapped combo can type, fire shortcuts, or ring the macOS key beep). It works regardless of window focus and on both macOS and Windows; **macOS requires Input Monitoring permission** (no programmatic grant — surfaced via `GetHotkeyStatus` + `OpenInputMonitoringSettings` in Settings, and usually a relaunch). The auto-repeat debounce (one `ptt:down` per physical press) lives in a pure, unit-tested matcher; `keymap.go` maps the canonical hotkey string ↔ gohook keycodes ↔ display label. **Cross-compile caveat:** gohook needs CGO + native toolchains, so build each OS natively (or via a CI matrix) rather than cross-compiling.
+
 ## Key Go bindings (exposed to frontend)
 
 These `app.go` methods are callable from TypeScript as async functions via `lib/wailsBridge.ts`. Wails auto-generates the TS types from the Go structs. After adding/changing one, run `wails generate module` and export it from the bridge.
@@ -91,6 +93,16 @@ func (a *App) PreviewVoice(voiceID string) (string, error)                  // s
 // Saving a voice needs no binding — VoicePicker writes Preferences.VoiceID /
 // GoogleVoiceID (and TTSProvider) via UpdatePreferences. activeTTS() in app.go
 // picks the provider+voice, falling back to whichever key is configured.
+
+// Push-to-talk (global hotkey) — a backend keyboard hook (internal/hotkey via
+// robotn/gohook) emits a "ptt:down" Wails event per press; the frontend toggles
+// recording on it through the same recorder path. Enable + key live
+// in Preferences (PushToTalkEnabled, PushToTalkKey, default "RightAlt").
+// UpdatePreferences applies them via Listener.Apply, which swaps the matched key
+// on the long-lived hook — the OS hook is started once and never restarted
+// (restarting libuiohook mid-run segfaults on macOS).
+func (a *App) GetHotkeyStatus() hotkey.Status   // running/hookEnabled/spec/label/goos — drives the macOS permission hint
+func (a *App) OpenInputMonitoringSettings()     // macOS: open System Settings → Privacy & Security → Input Monitoring
 ```
 
 ## AI interviewer system prompt (core behavior)

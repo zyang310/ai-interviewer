@@ -60,4 +60,9 @@ type Preferences struct {
 	// Session timer. 0 means no limit / no warning.
 	SessionLimitMinutes int `json:"sessionLimitMinutes"` // default 30
 	SoftWarningMinutes  int `json:"softWarningMinutes"`  // default 25
+
+	// Global push-to-talk: hold the hotkey to record, release to send. Works
+	// while the IDE (not this window) is focused, via an OS-level keyboard hook.
+	PushToTalkEnabled bool   `json:"pushToTalkEnabled"` // default true
+	PushToTalkKey     string `json:"pushToTalkKey"`     // canonical hotkey, e.g. "Ctrl+Space"
 }

@@ -14,8 +14,9 @@ A desktop app that runs a **live AI mock coding interview**. The user codes in t
 - **Go backend** — screen capture, all external API calls, SQLite, window/overlay control.
 - **Frontend** — React + TypeScript + Vite. **Styling is plain CSS with Material Design 3 tokens (CSS variables) — no Tailwind.**
 - **AI** — OpenRouter (vision models) via the Go backend.
-- **Voice** — via the Go backend, **non-streaming** v1. Both STT and TTS resolve a provider behind app.go's `sttProvider`/`ttsProvider` interfaces — **Google** (default voice, low-cost) and **ElevenLabs** (Scribe STT + Flash TTS, premium). Each provider is self-sufficient (one key = full voice); the Settings toggle is **voice-only** (STT auto-prefers Scribe when its key is present, else Google), so with both keys the default is the optimal combo: Scribe STT + Google TTS. The mic records via `MediaRecorder` and is re-encoded to 16 kHz mono WAV client-side (`audioToWav`, since Google STT can't ingest WKWebView's AAC); all API calls happen in Go. Playback speed is applied client-side via `playbackRate`.
-- **Deps** — `kbinani/screenshot` + `golang.org/x/image` (capture), `mattn/go-sqlite3` (storage), `google/uuid`.
+- **Voice** — via the Go backend, **non-streaming** v1. Both STT and TTS resolve a provider behind app.go's `sttProvider`/`ttsProvider` interfaces — **Google** (default voice, low-cost) and **ElevenLabs** (Scribe STT + Flash TTS, premium). Each provider is self-sufficient (one key = full voice); the Settings toggle is **voice-only** (STT auto-prefers Scribe when its key is present, else Google), so with both keys the default is the optimal combo: Scribe STT + Google TTS. The mic records via `MediaRecorder` and is re-encoded to 16 kHz mono WAV client-side (`audioToWav`, since Google STT can't ingest WKWebView's AAC); all API calls happen in Go. Playback speed is applied client-side via `playbackRate`. The mic has two triggers: the click-to-toggle button, and **global push-to-talk** (below).
+- **Voice hotkey** — a configurable global hotkey (default `Right ⌥ Option` — a bare modifier that avoids the macOS unhandled-key beep a combo would cause; Settings → Voice Hotkey). A backend OS-level keyboard hook (`internal/hotkey`, via `robotn/gohook`) fires a Wails `ptt:down` event per press; the frontend **toggles** recording on it — press to start, press again to stop & send — through the same recorder path as the mic button. Works while the IDE (not this window) is focused, cross-platform. The hook is **passive** (the key still reaches the IDE) and on **macOS requires Input Monitoring permission** (surfaced in Settings). Defaults to **enabled**.
+- **Deps** — `kbinani/screenshot` + `golang.org/x/image` (capture), `mattn/go-sqlite3` (storage), `google/uuid`, `robotn/gohook` (global hotkey).
 
 ## Codebase map (where things live)
 
@@ -27,11 +28,12 @@ A desktop app that runs a **live AI mock coding interview**. The user codes in t
 | `internal/voice/` | ElevenLabs client (`client.go`): Scribe STT, Flash TTS, voice catalog. |
 | `internal/googletts/` | Google Cloud client (`client.go`): TTS (synthesize + English voice catalog) **and** STT (`Transcribe`). Satisfies the same `Synthesize`/`ListVoices`/`Transcribe` shapes as `internal/voice`. |
 | `internal/capture/` | Screen capture + region cropping. |
+| `internal/hotkey/` | Global voice-hotkey keyboard hook (`listener.go`, via `robotn/gohook`) + hotkey spec↔keycode↔label mapping (`keymap.go`). Emits a Wails `ptt:down` event per press (frontend toggles recording on it); passive (doesn't swallow the key). |
 | `internal/store/` | SQLite: sessions, preferences, API keys. |
 | `internal/models/` | Structs that cross the Wails boundary (Session, Message, Preferences, AuthStatus, Model, Voice). |
 | `frontend/src/App.tsx` | UI shell: floating pill nav → idle hub / active session / overlay. |
 | `frontend/src/components/` | One component + its own CSS each (SetupPage, HubReady, CapturePanel, RegionSelector, Chat, MessageBubble, Overlay, Settings, ModelPicker, VoicePicker). |
-| `frontend/src/lib/` | `wailsBridge.ts` (single import point for bound Go methods + models) + hooks (`useVoiceRecorder`, `useAudioPlayer`). |
+| `frontend/src/lib/` | `wailsBridge.ts` (single import point for bound Go methods + models + runtime `EventsOn`/`EventsOff`) + hooks (`useVoiceRecorder`, `useAudioPlayer`) + `hotkey.ts` (browser mirror of the Go keymap, for the Settings hotkey-capture UI). |
 | `frontend/src/style.css` | MD3 design tokens (`:root` CSS variables) + global reset. |
 | `frontend/wailsjs/` | Auto-generated bindings — **do not hand-edit**. |
 | `docs/` | Roadmap, architecture reference, feature plans. |
@@ -65,3 +67,4 @@ A desktop app that runs a **live AI mock coding interview**. The user codes in t
 - [docs/architecture.md](docs/architecture.md) — data flow, full bindings, prompt spec, OpenRouter/ElevenLabs API contracts
 - [docs/model-picker-plan.md](docs/model-picker-plan.md) — model picker design reference (Phase 3, implemented)
 - [docs/voice-integration-plan.md](docs/voice-integration-plan.md) — voice (ElevenLabs) implementation plan (Phase 2)
+- [docs/push-to-talk-plan.md](docs/push-to-talk-plan.md) — global voice hotkey (toggle) design reference + the global-vs-in-app scope decision (Phase 3, implemented)

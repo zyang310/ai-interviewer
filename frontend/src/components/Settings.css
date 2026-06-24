@@ -310,6 +310,14 @@
   cursor: not-allowed;
 }
 
+/* Push-to-talk hotkey capture button — fixed width so it doesn't jump between
+   the captured key label and the "Press a key…" prompt; mono for keycap clarity. */
+.settings-hotkey-btn {
+  min-width: 180px;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  letter-spacing: 0.02em;
+}
+
 /* ── Status + feedback ───────────────────────────────────────────────────── */
 .settings-status {
   font-size: 13px;

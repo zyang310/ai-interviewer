@@ -7,6 +7,7 @@ import RegionSelector from "./components/RegionSelector";
 import Settings from "./components/Settings";
 import SetupPage from "./components/SetupPage";
 import {
+  EventsOn,
   GetAuthStatus,
   GetPreferences,
   StartSession,
@@ -65,6 +66,15 @@ function App() {
   const [transcribing, setTranscribing] = useState(false);
   const voiceModeRef = useRef(false);
 
+  // Voice hotkey: pttBusyRef guards the toggle against overlapping presses; the
+  // *Ref mirrors let the once-subscribed key handler call the latest recording
+  // closures without re-subscribing each render; the timer is a safety net that
+  // auto-stops a recording the user forgets to end.
+  const pttBusyRef = useRef(false);
+  const pttTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const toggleRecordingRef = useRef<() => void>(() => {});
+  const stopAndSendRef = useRef<() => void>(() => {});
+
   function setVoice(on: boolean) {
     voiceModeRef.current = on;
     setVoiceMode(on);
@@ -119,6 +129,22 @@ function App() {
       setView("settings");
     }
   }, [authStatus.openRouterConfigured]);
+
+  // Global voice hotkey: while enabled, each key press toggles recording — press
+  // once to start, again to stop and send (same as the mic button). The backend
+  // emits one "ptt:down" per press (releases aren't sent). The real guards live in
+  // handleMicToggle / startRecording; pttBusyRef is reset on cleanup so toggling
+  // the feature off can't leave it stuck.
+  useEffect(() => {
+    if (!prefs?.pushToTalkEnabled) return;
+    const offDown = EventsOn("ptt:down", () => {
+      void toggleRecordingRef.current();
+    });
+    return () => {
+      offDown();
+      pttBusyRef.current = false;
+    };
+  }, [prefs?.pushToTalkEnabled]);
 
   async function handleStart() {
     setError("");
@@ -176,34 +202,68 @@ function App() {
     setVoice(!voiceMode);
   }
 
-  // Click-to-toggle push-to-talk: first click records, second stops →
-  // transcribes → feeds the text into the normal send loop. Speaking a question
-  // turns voice mode on so the reply is spoken back.
-  async function handleMicToggle() {
-    if (!recorder.recording && !sttConfigured) {
+  // Recording shared by the click-to-toggle mic button and global push-to-talk.
+  // startRecording opens the mic (barging in over any TTS); stopAndSend ends it,
+  // transcribes, and feeds the text into the normal send loop. Speaking a
+  // question turns voice mode on so the reply is spoken back.
+  async function startRecording() {
+    if (sessionId === null) return; // only record during an active session
+    if (!sttConfigured) {
       setError("No transcription provider configured — add a Google Cloud or ElevenLabs key in Settings.");
       return;
     }
-    if (recorder.recording) {
-      const rec = await recorder.stop();
-      if (!rec) return;
-      setTranscribing(true);
-      try {
-        const text = (await TranscribeAudio(rec.base64, rec.mimeType)).trim();
-        if (text) {
-          setVoice(true);
-          await handleSend(text);
-        }
-      } catch (e: any) {
-        setError(e?.message || String(e));
-      } finally {
-        setTranscribing(false);
+    if (recorder.recording || transcribing) return;
+    setError("");
+    player.stop(); // barge in over the interviewer
+    await recorder.start();
+    // Safety net: stop a recording whose key-up was never received.
+    if (pttTimerRef.current) clearTimeout(pttTimerRef.current);
+    pttTimerRef.current = setTimeout(() => {
+      pttBusyRef.current = false;
+      void stopAndSendRef.current();
+    }, 300000);
+  }
+
+  async function stopAndSend() {
+    if (pttTimerRef.current) {
+      clearTimeout(pttTimerRef.current);
+      pttTimerRef.current = null;
+    }
+    if (!recorder.recording) return;
+    const rec = await recorder.stop();
+    if (!rec) return;
+    setTranscribing(true);
+    try {
+      const text = (await TranscribeAudio(rec.base64, rec.mimeType)).trim();
+      if (text) {
+        setVoice(true);
+        await handleSend(text);
       }
-    } else {
-      setError("");
-      await recorder.start();
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    } finally {
+      setTranscribing(false);
     }
   }
+
+  // Toggle recording — shared by the mic button and the voice hotkey. First
+  // call records, second stops and sends. pttBusyRef serializes the async
+  // start/stop so a fast double-press (or double-click) can't overlap.
+  async function handleMicToggle() {
+    if (pttBusyRef.current) return;
+    pttBusyRef.current = true;
+    try {
+      if (recorder.recording) await stopAndSend();
+      else await startRecording();
+    } finally {
+      pttBusyRef.current = false;
+    }
+  }
+
+  // Keep latest-closure refs current so the once-subscribed hotkey handler and
+  // the safety timer always call the freshest functions without re-subscribing.
+  toggleRecordingRef.current = handleMicToggle;
+  stopAndSendRef.current = stopAndSend;
 
   // "Full Screen" capture control — clear any cropped region (w=h=0) so the
   // backend captures the whole selected display.

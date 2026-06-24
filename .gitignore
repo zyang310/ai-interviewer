@@ -47,3 +47,6 @@ frontend/node_modules
 
 # Wails generated checksum
 frontend/package.json.md5
+
+# markdown files
+changes.md
