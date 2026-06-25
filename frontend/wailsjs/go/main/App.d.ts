@@ -30,9 +30,13 @@ export function ListSessions():Promise<Array<models.SessionSummary>>;
 
 export function ListVoices():Promise<Array<models.Voice>>;
 
+export function MinimiseWindow():Promise<void>;
+
 export function OpenInputMonitoringSettings():Promise<void>;
 
 export function PreviewVoice(arg1:string):Promise<string>;
+
+export function QuitApp():Promise<void>;
 
 export function SendMessage(arg1:string):Promise<string>;
 
@@ -51,6 +55,8 @@ export function StartSession(arg1:string):Promise<models.Session>;
 export function StopCapture():Promise<void>;
 
 export function SynthesizeSpeech(arg1:string):Promise<string>;
+
+export function ToggleMaximiseWindow():Promise<void>;
 
 export function TranscribeAudio(arg1:string,arg2:string):Promise<string>;
 

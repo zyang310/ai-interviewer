@@ -1,0 +1,43 @@
+/* Custom controls for the frameless window (no native titlebar). Fixed top-right,
+   above every app layer (setup screen z 200, modals z 110) so the window can
+   always be minimised/quit; buttons opt out of the window drag region. */
+.window-controls {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  --wails-draggable: no-drag;
+}
+
+.window-control {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--outline-variant);
+  border-radius: 8px;
+  background: var(--surface-container-high, #2a2d33);
+  color: var(--on-surface);
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
+}
+
+.window-control:hover {
+  background: var(--surface-container-highest);
+  color: var(--on-surface);
+}
+
+.window-control-close:hover {
+  background: var(--error, #ef4444);
+  color: #fff;
+}
+
+.window-control .material-symbols-outlined {
+  font-size: 18px;
+}

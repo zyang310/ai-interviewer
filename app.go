@@ -624,3 +624,22 @@ func (a *App) positionOverlayTopCenter() {
 	}
 	runtime.WindowSetPosition(a.ctx, x, overlayTopGap)
 }
+
+// The window is frameless (so the overlay can float over the IDE), which removes
+// the native titlebar buttons — the UI draws its own and calls these.
+
+// MinimiseWindow minimises the app window to the dock/taskbar.
+func (a *App) MinimiseWindow() {
+	runtime.WindowMinimise(a.ctx)
+}
+
+// ToggleMaximiseWindow toggles the window between maximised and its normal size.
+func (a *App) ToggleMaximiseWindow() {
+	runtime.WindowToggleMaximise(a.ctx)
+}
+
+// QuitApp exits the application, running the normal shutdown (stops the hotkey
+// and capturer, closes the database).
+func (a *App) QuitApp() {
+	runtime.Quit(a.ctx)
+}

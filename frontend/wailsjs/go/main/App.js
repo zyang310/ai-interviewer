@@ -54,12 +54,20 @@ export function ListVoices() {
   return window['go']['main']['App']['ListVoices']();
 }
 
+export function MinimiseWindow() {
+  return window['go']['main']['App']['MinimiseWindow']();
+}
+
 export function OpenInputMonitoringSettings() {
   return window['go']['main']['App']['OpenInputMonitoringSettings']();
 }
 
 export function PreviewVoice(arg1) {
   return window['go']['main']['App']['PreviewVoice'](arg1);
+}
+
+export function QuitApp() {
+  return window['go']['main']['App']['QuitApp']();
 }
 
 export function SendMessage(arg1) {
@@ -96,6 +104,10 @@ export function StopCapture() {
 
 export function SynthesizeSpeech(arg1) {
   return window['go']['main']['App']['SynthesizeSpeech'](arg1);
+}
+
+export function ToggleMaximiseWindow() {
+  return window['go']['main']['App']['ToggleMaximiseWindow']();
 }
 
 export function TranscribeAudio(arg1, arg2) {

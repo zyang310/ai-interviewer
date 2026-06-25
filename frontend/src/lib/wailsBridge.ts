@@ -15,8 +15,10 @@ export {
   ListDisplays,
   ListSessions,
   ListVoices,
+  MinimiseWindow,
   OpenInputMonitoringSettings,
   PreviewVoice,
+  QuitApp,
   SendMessage,
   SetAPIKey,
   SetCaptureRegion,
@@ -26,6 +28,7 @@ export {
   StartSession,
   StopCapture,
   SynthesizeSpeech,
+  ToggleMaximiseWindow,
   TranscribeAudio,
   UpdatePreferences,
 } from "../../wailsjs/go/main/App";

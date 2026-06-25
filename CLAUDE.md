@@ -32,7 +32,7 @@ A desktop app that runs a **live AI mock coding interview**. The user codes in t
 | `internal/store/` | SQLite: sessions, preferences, API keys. |
 | `internal/models/` | Structs that cross the Wails boundary (Session, Message, Preferences, AuthStatus, Model, Voice). |
 | `frontend/src/App.tsx` | UI shell: floating pill nav → idle hub / active session / overlay. |
-| `frontend/src/components/` | One component + its own CSS each (SetupPage, HubReady, CapturePanel, RegionSelector, Chat, MessageBubble, Overlay, Settings, ModelPicker, VoicePicker). |
+| `frontend/src/components/` | One component + its own CSS each (SetupPage, HubReady, CapturePanel, RegionSelector, Chat, MessageBubble, Overlay, Settings, ModelPicker, VoicePicker, WindowControls). |
 | `frontend/src/lib/` | `wailsBridge.ts` (single import point for bound Go methods + models + runtime `EventsOn`/`EventsOff`) + hooks (`useVoiceRecorder`, `useAudioPlayer`) + `hotkey.ts` (browser mirror of the Go keymap, for the Settings hotkey-capture UI). |
 | `frontend/src/style.css` | MD3 design tokens (`:root` CSS variables) + global reset. |
 | `frontend/wailsjs/` | Auto-generated bindings — **do not hand-edit**. |

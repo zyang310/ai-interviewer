@@ -6,6 +6,7 @@ import Overlay from "./components/Overlay";
 import RegionSelector from "./components/RegionSelector";
 import Settings from "./components/Settings";
 import SetupPage from "./components/SetupPage";
+import WindowControls from "./components/WindowControls";
 import {
   EventsOn,
   GetAuthStatus,
@@ -316,11 +317,14 @@ function App() {
   if (!authLoaded) return null;
   if (!setupDone) {
     return (
-      <SetupPage
-        authStatus={authStatus}
-        onAuthChange={setAuthStatus}
-        onContinue={() => setSetupDone(true)}
-      />
+      <>
+        <WindowControls />
+        <SetupPage
+          authStatus={authStatus}
+          onAuthChange={setAuthStatus}
+          onContinue={() => setSetupDone(true)}
+        />
+      </>
     );
   }
 
@@ -359,6 +363,7 @@ function App() {
 
   return (
     <div className="app">
+      <WindowControls />
       {/* Floating pill navigation */}
       <nav className="pill-nav">
         <button
