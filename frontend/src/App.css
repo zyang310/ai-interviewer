@@ -258,34 +258,3 @@
   display: flex;
   flex-direction: column;
 }
-
-/* ── History placeholder ──────────────────────────────────────────────── */
-.history-placeholder {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  padding: 32px;
-  text-align: center;
-}
-
-.history-placeholder .material-symbols-outlined {
-  font-size: 48px;
-  color: var(--outline);
-}
-
-.history-placeholder-title {
-  font-size: 20px;
-  font-weight: 600;
-  color: var(--on-surface);
-  margin: 0;
-}
-
-.history-placeholder-sub {
-  font-size: 14px;
-  color: var(--on-surface-variant);
-  max-width: 360px;
-  margin: 0;
-}

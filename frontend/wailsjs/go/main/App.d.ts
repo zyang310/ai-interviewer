@@ -6,6 +6,8 @@ import {capture} from '../models';
 
 export function DeleteAPIKey(arg1:string):Promise<void>;
 
+export function DeleteSession(arg1:string):Promise<void>;
+
 export function EndSession(arg1:string):Promise<void>;
 
 export function EnterOverlayMode():Promise<void>;

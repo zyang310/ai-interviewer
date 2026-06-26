@@ -47,3 +47,16 @@ func BuildSystemPrompt() string {
 			BAD: "That is an interesting thought, but actually searching a hash map takes order 1 time, not order n. Because of this, do you want to rethink your approach?"
 			GOOD: "Actually, hash map lookups are order 1, not order n. How does that change your overall time complexity?"`
 }
+
+// ProblemMetaPrompt instructs the model to label a finished interview transcript
+// for the history list. It must return only a strict JSON object so the reply
+// parses directly. Used by Client.ExtractProblemMeta after a session ends — never
+// during the live interview, so it does not affect the screen-driven flow.
+const ProblemMetaPrompt = `You are labeling a finished technical coding interview so it can be shown in a history list.
+
+You are given the interview transcript (the interviewer's and the candidate's messages). From it, infer two things:
+- "title": the name of the coding problem in at most 4 words (for example "LRU Cache", "Two Sum", "Merge Intervals"). Use the common, canonical name when you recognise it. If you cannot tell, use an empty string.
+- "difficulty": one of "Easy", "Medium", or "Hard", judged like a typical LeetCode rating. If you cannot tell, use an empty string.
+
+Respond with ONLY a single JSON object and nothing else — no markdown, no code fences, no explanation:
+{"title": "...", "difficulty": "..."}`

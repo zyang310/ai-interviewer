@@ -141,6 +141,63 @@ func (c *Client) Complete(ctx context.Context, model string, messages []ChatMess
 	return result.Choices[0].Message.Content, nil
 }
 
+// ProblemMeta is the AI-derived label for a finished session, shown in the
+// history list. Empty fields mean the model could not determine a value.
+type ProblemMeta struct {
+	Title      string `json:"title"`
+	Difficulty string `json:"difficulty"`
+}
+
+// ExtractProblemMeta derives a short problem title and difficulty from a finished
+// session's transcript, for the history list. It reuses Complete (so max_tokens is
+// already capped) and is best-effort: callers should treat an error or empty
+// fields as "no label" and fall back to a generic title. The interview stays
+// screen-driven; this only labels the session after the fact.
+func (c *Client) ExtractProblemMeta(ctx context.Context, model, transcript string) (ProblemMeta, error) {
+	messages := []ChatMessage{
+		{Role: "system", Content: ProblemMetaPrompt},
+		{Role: "user", Content: transcript},
+	}
+	raw, err := c.Complete(ctx, model, messages)
+	if err != nil {
+		return ProblemMeta{}, err
+	}
+	return parseProblemMeta(raw)
+}
+
+// parseProblemMeta pulls the {title, difficulty} JSON object out of a model reply,
+// tolerating code fences or surrounding prose, and normalises difficulty to one of
+// Easy/Medium/Hard (or "" when unrecognised).
+func parseProblemMeta(raw string) (ProblemMeta, error) {
+	s := strings.TrimSpace(raw)
+	// Keep only the outermost {...} so stray fences or prose don't break parsing.
+	if i, j := strings.Index(s, "{"), strings.LastIndex(s, "}"); i >= 0 && j >= i {
+		s = s[i : j+1]
+	}
+	var meta ProblemMeta
+	if err := json.Unmarshal([]byte(s), &meta); err != nil {
+		return ProblemMeta{}, fmt.Errorf("ai: parse problem meta: %w", err)
+	}
+	meta.Title = strings.TrimSpace(meta.Title)
+	meta.Difficulty = normaliseDifficulty(meta.Difficulty)
+	return meta, nil
+}
+
+// normaliseDifficulty canonicalises a free-form difficulty to Easy/Medium/Hard,
+// or "" if it doesn't match one of those.
+func normaliseDifficulty(d string) string {
+	switch strings.ToLower(strings.TrimSpace(d)) {
+	case "easy":
+		return "Easy"
+	case "medium":
+		return "Medium"
+	case "hard":
+		return "Hard"
+	default:
+		return ""
+	}
+}
+
 // ListModels returns the OpenRouter model catalog shaped for the picker UI.
 // Results are cached in-memory for modelsCacheTTL so opening Settings doesn't
 // re-pull the full (300+ entry) list each time. The mutex is held across the

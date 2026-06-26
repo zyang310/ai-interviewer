@@ -3,6 +3,7 @@
 
 export {
   DeleteAPIKey,
+  DeleteSession,
   EndSession,
   EnterOverlayMode,
   ExitOverlayMode,

@@ -1,0 +1,79 @@
+/* ── Session History page ─────────────────────────────────────────────────
+   Full-page history: a centered column of expandable session cards. Owns its
+   own vertical scroll since .app-content clips overflow (mirrors .settings-page). */
+.history-page {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 8px 32px 56px;
+}
+
+.history-inner {
+  width: 100%;
+  max-width: 880px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.history-head h1 {
+  font-size: 32px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--on-surface);
+  margin: 0;
+}
+
+.history-head p {
+  font-size: 14px;
+  color: var(--on-surface-variant);
+  margin: 8px 0 0;
+}
+
+/* ── List ─────────────────────────────────────────────────────────────────── */
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ── Status + empty states ──────────────────────────────────────────────────── */
+.history-status {
+  margin: 0;
+  font-size: 14px;
+  color: var(--on-surface-variant);
+}
+
+.history-status.error {
+  color: var(--error);
+}
+
+.history-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 56px 32px;
+  text-align: center;
+}
+
+.history-empty .material-symbols-outlined {
+  font-size: 48px;
+  color: var(--outline);
+}
+
+.history-empty-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--on-surface);
+}
+
+.history-empty-sub {
+  margin: 0;
+  max-width: 360px;
+  font-size: 14px;
+  color: var(--on-surface-variant);
+}

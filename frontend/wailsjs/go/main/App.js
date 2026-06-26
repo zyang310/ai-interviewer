@@ -6,6 +6,10 @@ export function DeleteAPIKey(arg1) {
   return window['go']['main']['App']['DeleteAPIKey'](arg1);
 }
 
+export function DeleteSession(arg1) {
+  return window['go']['main']['App']['DeleteSession'](arg1);
+}
+
 export function EndSession(arg1) {
   return window['go']['main']['App']['EndSession'](arg1);
 }

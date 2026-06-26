@@ -211,15 +211,86 @@ func (a *App) StartSession(model string) (models.Session, error) {
 	return session, nil
 }
 
-// EndSession stops the current interview and persists the end timestamp.
+// EndSession stops the current interview and persists the end timestamp. It also
+// kicks off best-effort background extraction of a problem title/difficulty for
+// the history list (see extractSessionMeta).
 func (a *App) EndSession(sessionID string) error {
 	a.capturer.Stop()
 
 	if err := a.db.EndSession(sessionID); err != nil {
 		return err
 	}
+
+	// Capture the session's model before clearing in-memory state — it's needed
+	// for the extraction call below and isn't otherwise recoverable here.
+	model := ""
+	if a.active != nil {
+		model = a.active.session.Model
+	}
 	a.active = nil
+
+	// Label the session for history in the background so ending stays instant.
+	if a.aiClient != nil {
+		go a.extractSessionMeta(sessionID, model)
+	}
 	return nil
+}
+
+// extractSessionMeta asks the AI for a short problem title and difficulty for a
+// finished session and persists them for the history list. Best-effort: every
+// failure is logged and swallowed so it never affects the interview. Runs in its
+// own goroutine with a fresh context (the request context may already be done).
+func (a *App) extractSessionMeta(sessionID, model string) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if model == "" {
+		// EndSession had no in-memory session; fall back to the default model.
+		if prefs, err := a.db.GetPreferences(); err == nil {
+			model = prefs.Model
+		}
+		if model == "" {
+			return
+		}
+	}
+
+	msgs, err := a.db.GetMessages(sessionID)
+	if err != nil {
+		log.Printf("history: load transcript for labeling: %v", err)
+		return
+	}
+	if len(msgs) < 2 {
+		return // too short to label meaningfully
+	}
+
+	meta, err := a.aiClient.ExtractProblemMeta(ctx, model, buildTranscript(msgs))
+	if err != nil {
+		log.Printf("history: extract problem meta: %v", err)
+		return
+	}
+	if meta.Title == "" && meta.Difficulty == "" {
+		return // nothing useful to store
+	}
+	if err := a.db.UpdateSessionMeta(sessionID, meta.Title, meta.Difficulty); err != nil {
+		log.Printf("history: persist problem meta: %v", err)
+	}
+}
+
+// buildTranscript renders stored messages as a plain "Speaker: text" transcript
+// for problem-metadata extraction.
+func buildTranscript(msgs []models.Message) string {
+	var b strings.Builder
+	for _, m := range msgs {
+		speaker := "Candidate"
+		if m.Role == "assistant" {
+			speaker = "Interviewer"
+		}
+		b.WriteString(speaker)
+		b.WriteString(": ")
+		b.WriteString(m.Content)
+		b.WriteString("\n")
+	}
+	return b.String()
 }
 
 // SendMessage is the core interview loop. It captures a screenshot, sends the
@@ -363,6 +434,15 @@ func (a *App) ListSessions() ([]models.SessionSummary, error) {
 // GetSessionTranscript returns the full message history for a session.
 func (a *App) GetSessionTranscript(id string) ([]models.Message, error) {
 	return a.db.GetMessages(id)
+}
+
+// DeleteSession permanently removes a past session and its transcript. The active
+// session can't be deleted — it must be ended first.
+func (a *App) DeleteSession(id string) error {
+	if a.active != nil && a.active.session.ID == id {
+		return fmt.Errorf("cannot delete the active session — end it first")
+	}
+	return a.db.DeleteSession(id)
 }
 
 // ---------------------------------------------------------------------------

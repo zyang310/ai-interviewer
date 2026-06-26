@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import Chat from "./components/Chat";
 import CapturePanel from "./components/CapturePanel";
+import History from "./components/History";
 import HubReady from "./components/HubReady";
 import Overlay from "./components/Overlay";
 import RegionSelector from "./components/RegionSelector";
@@ -421,13 +422,7 @@ function App() {
             onPrefsChange={setPrefs}
           />
         ) : view === "history" ? (
-          <div className="history-placeholder">
-            <span className="material-symbols-outlined">history</span>
-            <p className="history-placeholder-title">Session history</p>
-            <p className="history-placeholder-sub">
-              Your past interview sessions will appear here. This view is coming soon.
-            </p>
-          </div>
+          <History />
         ) : !isActive ? (
           <HubReady
             onStart={handleStart}

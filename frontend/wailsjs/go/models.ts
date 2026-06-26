@@ -185,6 +185,8 @@ export namespace models {
 	    startedAt: any;
 	    // Go type: time
 	    endedAt?: any;
+	    problemTitle: string;
+	    difficulty: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new Session(source);
@@ -197,6 +199,8 @@ export namespace models {
 	        this.model = source["model"];
 	        this.startedAt = this.convertValues(source["startedAt"], null);
 	        this.endedAt = this.convertValues(source["endedAt"], null);
+	        this.problemTitle = source["problemTitle"];
+	        this.difficulty = source["difficulty"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -220,9 +224,12 @@ export namespace models {
 	export class SessionSummary {
 	    id: string;
 	    problemTitle: string;
+	    difficulty: string;
 	    model: string;
 	    // Go type: time
 	    startedAt: any;
+	    // Go type: time
+	    endedAt?: any;
 	    messageCount: number;
 	
 	    static createFrom(source: any = {}) {
@@ -233,8 +240,10 @@ export namespace models {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
 	        this.problemTitle = source["problemTitle"];
+	        this.difficulty = source["difficulty"];
 	        this.model = source["model"];
 	        this.startedAt = this.convertValues(source["startedAt"], null);
+	        this.endedAt = this.convertValues(source["endedAt"], null);
 	        this.messageCount = source["messageCount"];
 	    }
 	

@@ -2,13 +2,17 @@ package models
 
 import "time"
 
-// Session represents a single mock interview session.
+// Session represents a single mock interview session. It mirrors the sessions
+// table 1:1. ProblemTitle and Difficulty are AI-derived after the session ends
+// (for the history list) and are empty until then.
 type Session struct {
-	ID        string     `json:"id"`
-	ProblemID string     `json:"problemId"`
-	Model     string     `json:"model"`
-	StartedAt time.Time  `json:"startedAt"`
-	EndedAt   *time.Time `json:"endedAt,omitempty"`
+	ID           string     `json:"id"`
+	ProblemID    string     `json:"problemId"`
+	Model        string     `json:"model"`
+	StartedAt    time.Time  `json:"startedAt"`
+	EndedAt      *time.Time `json:"endedAt,omitempty"`
+	ProblemTitle string     `json:"problemTitle"`
+	Difficulty   string     `json:"difficulty"`
 }
 
 // Message is one turn in the interview conversation.
@@ -22,12 +26,17 @@ type Message struct {
 }
 
 // SessionSummary is a lightweight view used in the session history list.
+// EndedAt is nil for sessions that never ended; the client computes duration
+// from StartedAt/EndedAt. ProblemTitle and Difficulty are AI-derived and may be
+// empty (the client falls back to a generic label).
 type SessionSummary struct {
-	ID           string    `json:"id"`
-	ProblemTitle string    `json:"problemTitle"`
-	Model        string    `json:"model"`
-	StartedAt    time.Time `json:"startedAt"`
-	MessageCount int       `json:"messageCount"`
+	ID           string     `json:"id"`
+	ProblemTitle string     `json:"problemTitle"`
+	Difficulty   string     `json:"difficulty"`
+	Model        string     `json:"model"`
+	StartedAt    time.Time  `json:"startedAt"`
+	EndedAt      *time.Time `json:"endedAt,omitempty"`
+	MessageCount int        `json:"messageCount"`
 }
 
 // AuthStatus reports which API providers are currently configured.
