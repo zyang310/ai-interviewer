@@ -81,6 +81,12 @@ func (c *Client) Transcribe(ctx context.Context, audio []byte, mimeType string) 
 	if err := w.WriteField("model_id", scribeModel); err != nil {
 		return "", fmt.Errorf("voice: write model field: %w", err)
 	}
+	// Transcribe speech only. By default Scribe annotates non-speech sounds with
+	// tags like "[background noise]" / "[music]"; on a silent or noisy clip that
+	// tag becomes the entire transcript and would be sent to the LLM as a message.
+	if err := w.WriteField("tag_audio_events", "false"); err != nil {
+		return "", fmt.Errorf("voice: write tag_audio_events field: %w", err)
+	}
 	if err := w.Close(); err != nil {
 		return "", fmt.Errorf("voice: close multipart: %w", err)
 	}

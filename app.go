@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"log"
+	"regexp"
 	"strings"
 	"time"
 
@@ -592,7 +593,25 @@ func (a *App) TranscribeAudio(audioBase64, mimeType string) (string, error) {
 		return "", fmt.Errorf("decode audio: %w", err)
 	}
 
-	return provider.Transcribe(a.ctx, audio, mimeType)
+	text, err := provider.Transcribe(a.ctx, audio, mimeType)
+	if err != nil {
+		return "", err
+	}
+	return stripNonSpeech(text), nil
+}
+
+// nonSpeechTag matches bracketed audio-event annotations like "[background
+// noise]" or "(coughs)" that STT providers emit for non-speech sounds.
+var nonSpeechTag = regexp.MustCompile(`\[[^\]]*\]|\([^)]*\)`)
+
+// stripNonSpeech removes audio-event annotations from a transcript and returns
+// the remaining speech (whitespace-collapsed). A clip with no speech — silence
+// or background noise — transcribes to only such tags, so the result is empty
+// and the frontend's "if (text)" gate drops the turn instead of sending the
+// tags to the LLM as a candidate message.
+func stripNonSpeech(text string) string {
+	cleaned := nonSpeechTag.ReplaceAllString(text, " ")
+	return strings.Join(strings.Fields(cleaned), " ")
 }
 
 // SynthesizeSpeech converts interviewer text into spoken audio via the active
