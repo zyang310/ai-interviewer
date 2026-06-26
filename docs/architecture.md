@@ -46,6 +46,24 @@ The app is **screen-driven** — the problem is never sent as text; it lives in 
 
 **Built (Phase 3 — global voice hotkey):** in addition to the click-to-toggle mic, a configurable global hotkey **toggles** recording — press once to start, press again to stop & send (same as the mic button). A backend OS-level keyboard hook (`internal/hotkey`, `robotn/gohook`) runs on a libuiohook C thread and emits a `ptt:down` Wails event per press; `App.tsx` subscribes via `EventsOn`, toggling the existing `useVoiceRecorder` on each press and barging in over any TTS when recording starts. The hook is **passive** — it observes the keystroke but does not consume it, so the key still reaches the focused IDE (pick one it ignores; a tapped combo can type, fire shortcuts, or ring the macOS key beep). It works regardless of window focus and on both macOS and Windows; **macOS requires Input Monitoring permission** (no programmatic grant — surfaced via `GetHotkeyStatus` + `OpenInputMonitoringSettings` in Settings, and usually a relaunch). The auto-repeat debounce (one `ptt:down` per physical press) lives in a pure, unit-tested matcher; `keymap.go` maps the canonical hotkey string ↔ gohook keycodes ↔ display label. **Cross-compile caveat:** gohook needs CGO + native toolchains, so build each OS natively (or via a CI matrix) rather than cross-compiling.
 
+**Built (Phase 3 — session history):** every session is persisted as it runs (it always has been — see *Persistence* below), and the **History** tab is the view onto it. `ListSessions` returns reverse-chronological summaries (title, difficulty, model, start/end → duration, message count); expanding a row lazy-loads its transcript via `GetSessionTranscript`; `DeleteSession` removes a session and its messages. Because the app is screen-driven (no problem text is stored), the problem **title + difficulty are AI-derived**: when `EndSession` runs it fires a best-effort background call (`ai.ExtractProblemMeta` — a text-only OpenRouter request using `ProblemMetaPrompt`) over the stored transcript and writes the result back via `UpdateSessionMeta`. It never blocks ending a session, and short/failed extractions just leave the generic "Interview session" label. Frontend: `History` + `SessionHistoryCard` (reusing `MessageBubble`); see [history-feature-plan.md](history-feature-plan.md).
+
+## Persistence (SQLite)
+
+All local state lives in one SQLite file, created on first launch (`store.Open`, [../internal/store/db.go](../internal/store/db.go)):
+
+```
+~/Library/Application Support/ai-interviewer/data.db   (+ -wal / -shm sidecars; WAL mode)
+```
+
+`migrate()` creates three tables idempotently (columns added in later versions are backfilled via `addColumnIfMissing`):
+
+- **`sessions`** — one row per interview: `id`, `problem_id` (unused; `""` for screen-driven), `model`, `started_at`, `ended_at`, and the AI-derived `problem_title` / `difficulty`. Written by `CreateSession` (on start) and `EndSession` (stamps `ended_at`); labeled by `UpdateSessionMeta`; removed by `DeleteSession`.
+- **`messages`** — one row per turn (user + interviewer): `role`, `content`, `has_image`, `created_at`. Written by `AddMessage` for **both** turns of every `SendMessage` — this is the stored transcript. **Text only; screenshots are never persisted** (they live in memory during the live session, then are discarded).
+- **`preferences`** — a generic key-value store ([../internal/store/preferences.go](../internal/store/preferences.go)) for settings **and** API keys (stored locally, unencrypted — see roadmap Phase 4).
+
+The session/message **write** path (`CreateSession` / `AddMessage` / `EndSession`) predates the history feature — the data was always being recorded; History (plus `DeleteSession` / `UpdateSessionMeta` and the two new `sessions` columns) is what surfaces and manages it. Nothing in `data.db` is uploaded — the only network calls are the live AI/voice API requests.
+
 ## Key Go bindings (exposed to frontend)
 
 These `app.go` methods are callable from TypeScript as async functions via `lib/wailsBridge.ts`. Wails auto-generates the TS types from the Go structs. After adding/changing one, run `wails generate module` and export it from the bridge.
@@ -73,9 +91,10 @@ func (a *App) EnterOverlayMode()                  // shrink, pin always-on-top, 
 func (a *App) ExitOverlayMode()                   // restore the full window
 func (a *App) SetOverlayExpanded(expanded bool)   // grow the overlay window for the history dropdown
 
-// Sessions
-func (a *App) ListSessions() ([]models.SessionSummary, error)
-func (a *App) GetSessionTranscript(id string) ([]models.Message, error)
+// Sessions (history view) — persisted in SQLite; see "Persistence" above
+func (a *App) ListSessions() ([]models.SessionSummary, error)            // reverse-chron summaries: title/difficulty (AI-derived), model, startedAt/endedAt (→ duration), messageCount
+func (a *App) GetSessionTranscript(id string) ([]models.Message, error)  // full transcript, lazy-loaded when a row is expanded
+func (a *App) DeleteSession(id string) error                            // deletes the session + its messages (refuses the active session)
 
 // Settings
 func (a *App) GetPreferences() (models.Preferences, error)
@@ -119,6 +138,8 @@ The system prompt ([../internal/ai/prompts.go](../internal/ai/prompts.go)) is th
 - Match the tone of a senior engineer, not a cheerful chatbot
 
 **There is no written problem statement.** A screenshot of the candidate's current screen is attached to their **latest message only** — the interviewer reads the problem and the current code from it (it may show an IDE, a LeetCode/NeetCode page, a terminal, or a browser). Earlier messages do not carry screenshots; this is intentional. Conversation history is included for continuity. If the interviewer can't yet tell what the problem is, it asks the candidate to clarify rather than guessing.
+
+A second, unrelated prompt lives in the same file: **`ProblemMetaPrompt`** asks the model to label a *finished* transcript with a short problem title + difficulty (strict-JSON reply, parsed by `ExtractProblemMeta`) for the history list. It runs only after a session ends and never feeds the live interview, so the screen-driven invariant holds.
 
 ## ElevenLabs API reference (Phase 2 — built, non-streaming v1)
 

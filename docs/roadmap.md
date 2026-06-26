@@ -7,7 +7,7 @@
 - **Phase 1 (screen-driven, typed core loop) is built**, and the UI has been redesigned onto a Material Design 3 dark theme (floating pill nav, idle "Ready to Begin?" hub, active capture + chat).
 - The **always-on-top floating overlay** bar (a Phase 4 item) was built early — entered via the "Compact" button during a session.
 - **Voice (Phase 2) is built (non-streaming v1).** Click-to-toggle mic → ElevenLabs Scribe (STT) → the normal interview loop → ElevenLabs Flash (TTS) spoken reply when "voice mode" is on. Voice selection lives in Settings; the overlay's "Live" indicator + mic are wired for real. Streaming TTS/AI-text is deferred.
-- **Phase 3 — UX** is in progress: **a global voice hotkey is built** (configurable, default `Right ⌥ Option`; press to start, press again to stop); the session history view is still a placeholder.
+- **Phase 3 — UX** is in progress: **a global voice hotkey is built** (configurable, default `Right ⌥ Option`; press to start, press again to stop) and the **session history view is built** (expandable past-session list with full transcripts + delete, plus AI-derived problem title + difficulty).
 
 ## Implementation phases
 
@@ -40,7 +40,7 @@
 - [x] Settings panel (capture interval, session time limit, key management)
 - [x] Display / capture-region selection
 - [x] Model picker — searchable list in Settings (vision-first, free models flagged, per-1M pricing) that persists to `Preferences.Model`; see [model-picker-plan.md](model-picker-plan.md)
-- [ ] Session history view (bindings `ListSessions` / `GetSessionTranscript` exist; the History tab is a placeholder)
+- [x] Session history view — History tab lists past sessions (problem title, difficulty, date, duration, model), expands to the full transcript, and supports delete. Problem **title + difficulty are AI-derived** at session end (best-effort, async) since the app is screen-driven; sessions from before this feature show a generic label. Bindings: `ListSessions` / `GetSessionTranscript` / `DeleteSession`. See [history-feature-plan.md](history-feature-plan.md).
 - ◑ Keyboard shortcuts — **global voice hotkey built**: press a configurable hotkey (default `Right ⌥ Option`) to start recording, press again to stop & send — works while the IDE is focused. Backend OS hook (`internal/hotkey` via `robotn/gohook`) → `ptt:down`/`ptt:up` Wails events (frontend toggles on down); config + macOS Input Monitoring hint in Settings → Voice Hotkey. End-session / toggle-capture shortcuts still TODO.
 - ~~Problem bank with JSON seed + problem selector~~ — **dropped (screen-driven design)**
 
@@ -49,7 +49,7 @@
 - [x] Always-on-top floating **overlay** mode (manual "Compact" toggle) + frameless/transparent window
 - [ ] OpenRouter OAuth PKCE flow
 - [ ] Encrypted token/key persistence (keys are stored in SQLite today, unencrypted)
-- [ ] Post-interview debrief mode (AI drops the interviewer persona, gives direct feedback)
+- [ ] Post-interview debrief mode (AI drops the interviewer persona, gives direct feedback) — a disabled "Go to Debrief" button is already wired into the History transcript card as the entry point
 - [ ] Session export (markdown transcript with timestamps)
 - [ ] (Overlay follow-ups) auto-collapse on window blur; custom min/close controls optional
 
