@@ -48,15 +48,42 @@ func BuildSystemPrompt() string {
 			GOOD: "Actually, hash map lookups are order 1, not order n. How does that change your overall time complexity?"`
 }
 
-// ProblemMetaPrompt instructs the model to label a finished interview transcript
-// for the history list. It must return only a strict JSON object so the reply
-// parses directly. Used by Client.ExtractProblemMeta after a session ends — never
-// during the live interview, so it does not affect the screen-driven flow.
-const ProblemMetaPrompt = `You are labeling a finished technical coding interview so it can be shown in a history list.
+// SessionMetaPrompt instructs the model to label a finished interview AND
+// transcribe the candidate's final code from a screenshot of their screen. It
+// must return only a strict JSON object so the reply parses directly. Used by
+// Client.ExtractSessionMeta after a session ends — never during the live
+// interview, so it does not affect the screen-driven flow. The captured code is
+// later fed to the debrief so it can judge the real solution, not just the chat.
+const SessionMetaPrompt = `You are processing a finished technical coding interview. You are given the interview transcript (the interviewer's and the candidate's messages) and a screenshot of the candidate's screen taken at the end of the session.
 
-You are given the interview transcript (the interviewer's and the candidate's messages). From it, infer two things:
+From these, infer three things:
 - "title": the name of the coding problem in at most 4 words (for example "LRU Cache", "Two Sum", "Merge Intervals"). Use the common, canonical name when you recognise it. If you cannot tell, use an empty string.
 - "difficulty": one of "Easy", "Medium", or "Hard", judged like a typical LeetCode rating. If you cannot tell, use an empty string.
+- "code": the candidate's final solution code, transcribed verbatim from the screenshot as plain text, preserving line breaks and indentation. If the screen shows no code (for example only a problem description or a blank editor), use an empty string. Do not invent or complete code that is not visible.
 
 Respond with ONLY a single JSON object and nothing else — no markdown, no code fences, no explanation:
-{"title": "...", "difficulty": "..."}`
+{"title": "...", "difficulty": "...", "code": "..."}`
+
+// DebriefPrompt instructs the model to drop the interviewer persona and write an
+// honest post-interview debrief as a strict JSON scorecard. Used by
+// Client.GenerateDebrief after a session ends, over the transcript plus the
+// candidate's captured final code — never during the live interview. Output is
+// strict JSON so the reply parses directly into models.Debrief.
+const DebriefPrompt = `You are a senior software engineer writing an honest, direct post-interview debrief for a candidate who just finished a technical coding interview. The interview is over: drop the interviewer persona, stop asking Socratic questions, and give them a straight assessment they can learn from.
+
+You are given the full interview transcript (interviewer and candidate turns) and, when available, the candidate's final code transcribed from their screen. Base your judgement on the candidate's reasoning and communication in the transcript, the correctness and quality of the final code, and the interviewer's own correctness verdict if one was stated. If the final code is empty, judge from the transcript alone and lower confidence accordingly.
+
+Produce:
+- "verdict": exactly one of "Strong Hire", "Hire", "Lean Hire", "No Hire", "Strong No Hire". If you genuinely cannot tell, use an empty string.
+- "summary": one or two plain sentences giving the overall assessment.
+- "rubric": an object scoring five dimensions from 1 (poor) to 5 (excellent); use 0 only when there is too little evidence to score that dimension:
+  - "problemSolving": approach, correctness, handling of edge cases.
+  - "coding": code quality, structure, and correctness of the final solution.
+  - "communication": clarity of thinking out loud, responsiveness to hints.
+  - "complexity": correctness of time/space complexity reasoning.
+  - "pace": time management — how efficiently they used their time, moving from a first approach toward an optimal solution without stalling.
+- "strengths": 2 to 4 short, specific bullet strings of what they did well.
+- "improvements": 2 to 4 short, specific, actionable bullet strings of what to work on.
+
+Be specific and reference what actually happened. Do not flatter. Respond with ONLY a single JSON object and nothing else — no markdown, no code fences, no explanation:
+{"verdict": "...", "summary": "...", "rubric": {"problemSolving": 0, "coding": 0, "communication": 0, "complexity": 0, "pace": 0}, "strengths": ["..."], "improvements": ["..."]}`

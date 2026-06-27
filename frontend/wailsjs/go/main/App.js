@@ -26,6 +26,10 @@ export function GetAuthStatus() {
   return window['go']['main']['App']['GetAuthStatus']();
 }
 
+export function GetDebrief(arg1) {
+  return window['go']['main']['App']['GetDebrief'](arg1);
+}
+
 export function GetHotkeyStatus() {
   return window['go']['main']['App']['GetHotkeyStatus']();
 }

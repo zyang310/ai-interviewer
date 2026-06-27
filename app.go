@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"log"
 	"regexp"
@@ -218,6 +219,11 @@ func (a *App) StartSession(model string) (models.Session, error) {
 func (a *App) EndSession(sessionID string) error {
 	a.capturer.Stop()
 
+	// Grab the final frame now, synchronously. Latest() survives Stop(), but a
+	// later StartSession would overwrite it — so capture the reference here before
+	// returning and hand it to the background extraction.
+	finalShot := a.capturer.Latest()
+
 	if err := a.db.EndSession(sessionID); err != nil {
 		return err
 	}
@@ -230,18 +236,21 @@ func (a *App) EndSession(sessionID string) error {
 	}
 	a.active = nil
 
-	// Label the session for history in the background so ending stays instant.
+	// Label the session and snapshot its final code in the background so ending
+	// stays instant.
 	if a.aiClient != nil {
-		go a.extractSessionMeta(sessionID, model)
+		go a.extractSessionMeta(sessionID, model, finalShot)
 	}
 	return nil
 }
 
-// extractSessionMeta asks the AI for a short problem title and difficulty for a
-// finished session and persists them for the history list. Best-effort: every
-// failure is logged and swallowed so it never affects the interview. Runs in its
-// own goroutine with a fresh context (the request context may already be done).
-func (a *App) extractSessionMeta(sessionID, model string) {
+// extractSessionMeta asks the AI for a short problem title, difficulty, and a text
+// snapshot of the candidate's final code (read from the final screenshot) for a
+// finished session, and persists them for the history list and later debrief.
+// Best-effort: every failure is logged and swallowed so it never affects the
+// interview. Runs in its own goroutine with a fresh context (the request context
+// may already be done).
+func (a *App) extractSessionMeta(sessionID, model, screenshot string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -264,16 +273,16 @@ func (a *App) extractSessionMeta(sessionID, model string) {
 		return // too short to label meaningfully
 	}
 
-	meta, err := a.aiClient.ExtractProblemMeta(ctx, model, buildTranscript(msgs))
+	meta, err := a.aiClient.ExtractSessionMeta(ctx, model, buildTranscript(msgs), screenshot)
 	if err != nil {
-		log.Printf("history: extract problem meta: %v", err)
+		log.Printf("history: extract session meta: %v", err)
 		return
 	}
-	if meta.Title == "" && meta.Difficulty == "" {
+	if meta.Title == "" && meta.Difficulty == "" && meta.Code == "" {
 		return // nothing useful to store
 	}
-	if err := a.db.UpdateSessionMeta(sessionID, meta.Title, meta.Difficulty); err != nil {
-		log.Printf("history: persist problem meta: %v", err)
+	if err := a.db.UpdateSessionMeta(sessionID, meta.Title, meta.Difficulty, meta.Code); err != nil {
+		log.Printf("history: persist session meta: %v", err)
 	}
 }
 
@@ -444,6 +453,60 @@ func (a *App) DeleteSession(id string) error {
 		return fmt.Errorf("cannot delete the active session — end it first")
 	}
 	return a.db.DeleteSession(id)
+}
+
+// GetDebrief returns the post-interview feedback scorecard for a finished session.
+// It is generated lazily and cached: if a debrief was already produced it is read
+// straight from SQLite (zero tokens); otherwise it is generated once from the
+// transcript plus the captured final code, using the session's own model, then
+// persisted. Requires a configured AI client.
+func (a *App) GetDebrief(id string) (models.Debrief, error) {
+	if a.aiClient == nil {
+		return models.Debrief{}, fmt.Errorf("debrief: no AI provider configured — add an OpenRouter key in Settings")
+	}
+
+	// 1. Cached? Return it without spending any tokens.
+	if cached, err := a.db.GetSessionDebrief(id); err == nil && cached != "" {
+		var d models.Debrief
+		if jsonErr := json.Unmarshal([]byte(cached), &d); jsonErr == nil {
+			return d, nil
+		}
+		// A corrupt cache shouldn't block a fresh generation; fall through.
+	}
+
+	// 2. Gather the inputs: the session (for its model), the transcript, and the
+	//    captured final code.
+	sess, err := a.db.GetSession(id)
+	if err != nil {
+		return models.Debrief{}, err
+	}
+	msgs, err := a.db.GetMessages(id)
+	if err != nil {
+		return models.Debrief{}, err
+	}
+	if len(msgs) < 2 {
+		return models.Debrief{}, fmt.Errorf("debrief: this session is too short to assess")
+	}
+	finalCode, err := a.db.GetSessionFinalCode(id)
+	if err != nil {
+		return models.Debrief{}, err
+	}
+
+	// 3. Generate (one text call), with a fresh bounded context.
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	debrief, err := a.aiClient.GenerateDebrief(ctx, sess.Model, buildTranscript(msgs), finalCode)
+	if err != nil {
+		return models.Debrief{}, err
+	}
+
+	// 4. Cache it (best-effort — a failed write just means we regenerate next time).
+	if raw, mErr := json.Marshal(debrief); mErr == nil {
+		if sErr := a.db.SaveSessionDebrief(id, string(raw)); sErr != nil {
+			log.Printf("debrief: persist for %s: %v", id, sErr)
+		}
+	}
+	return debrief, nil
 }
 
 // ---------------------------------------------------------------------------

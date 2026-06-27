@@ -16,6 +16,8 @@ export function ExitOverlayMode():Promise<void>;
 
 export function GetAuthStatus():Promise<models.AuthStatus>;
 
+export function GetDebrief(arg1:string):Promise<models.Debrief>;
+
 export function GetHotkeyStatus():Promise<hotkey.Status>;
 
 export function GetLatestScreenshot():Promise<string>;

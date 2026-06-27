@@ -39,6 +39,28 @@ type SessionSummary struct {
 	MessageCount int        `json:"messageCount"`
 }
 
+// DebriefRubric scores the candidate on five interview dimensions, 1-5. A 0 means
+// the model had too little evidence to score that dimension.
+type DebriefRubric struct {
+	ProblemSolving int `json:"problemSolving"`
+	Coding         int `json:"coding"`
+	Communication  int `json:"communication"`
+	Complexity     int `json:"complexity"`
+	Pace           int `json:"pace"`
+}
+
+// Debrief is the AI-generated post-interview feedback shown when the user opens a
+// past session's debrief. It is generated once (from the transcript + captured
+// final code) and cached on the session. Verdict is "" when the model could not
+// reach one.
+type Debrief struct {
+	Verdict      string        `json:"verdict"` // one of the 5-point hire-scale labels, or ""
+	Summary      string        `json:"summary"`
+	Rubric       DebriefRubric `json:"rubric"`
+	Strengths    []string      `json:"strengths"`
+	Improvements []string      `json:"improvements"`
+}
+
 // AuthStatus reports which API providers are currently configured.
 type AuthStatus struct {
 	OpenRouterConfigured bool `json:"openRouterConfigured"`

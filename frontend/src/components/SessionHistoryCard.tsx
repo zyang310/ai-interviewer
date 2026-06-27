@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { models } from "../lib/wailsBridge";
 import MessageBubble from "./MessageBubble";
+import Debrief from "./Debrief";
 import { formatSessionDate, formatDuration, prettyModel } from "../lib/format";
 import "./SessionHistoryCard.css";
 
@@ -10,23 +11,33 @@ interface Props {
   transcript?: models.Message[];
   loadingTranscript: boolean;
   transcriptError?: string;
+  debrief?: models.Debrief;
+  loadingDebrief: boolean;
+  debriefError?: string;
   onToggle: () => void;
+  onDebrief: () => void;
   onDelete: () => void;
 }
 
 // SessionHistoryCard renders one past session as an expandable row: a collapsed
-// summary (title, difficulty, date, duration, model) that opens to reveal the
-// full transcript. Delete uses an inline two-step confirm so it needs no modal.
+// summary (title, difficulty, date, duration, model) that opens to a tabbed body
+// switching between the full Transcript and the AI Debrief. Delete uses an inline
+// two-step confirm so it needs no modal.
 export default function SessionHistoryCard({
   summary,
   expanded,
   transcript,
   loadingTranscript,
   transcriptError,
+  debrief,
+  loadingDebrief,
+  debriefError,
   onToggle,
+  onDebrief,
   onDelete,
 }: Props) {
   const [confirming, setConfirming] = useState(false);
+  const [tab, setTab] = useState<"transcript" | "debrief">("transcript");
 
   const title = summary.problemTitle?.trim() || "Interview session";
 
@@ -102,30 +113,47 @@ export default function SessionHistoryCard({
 
       {expanded && (
         <div className="history-card-body">
-          <div className="history-transcript-head">Transcript</div>
-          <div className="history-transcript">
-            {loadingTranscript ? (
-              <p className="history-transcript-status">Loading transcript…</p>
-            ) : transcriptError ? (
-              <p className="history-transcript-status error">{transcriptError}</p>
-            ) : transcript && transcript.length > 0 ? (
-              transcript.map((m) => (
-                <MessageBubble
-                  key={m.id}
-                  role={m.role === "assistant" ? "assistant" : "user"}
-                  content={m.content}
-                />
-              ))
-            ) : (
-              <p className="history-transcript-status">No messages in this session.</p>
-            )}
-          </div>
-          {/* Debrief is a future feedback feature — disabled placeholder for now. */}
-          <div className="history-card-footer">
-            <button className="btn btn-primary" disabled title="Coming soon">
-              Go to Debrief
+          {/* Transcript ⇄ Debrief tabs. Selecting Debrief lazily generates it
+              (cached by the backend), so expanding never spends AI tokens. */}
+          <div className="history-tabs">
+            <button
+              className={`history-tab${tab === "transcript" ? " active" : ""}`}
+              onClick={() => setTab("transcript")}
+            >
+              Transcript
+            </button>
+            <button
+              className={`history-tab${tab === "debrief" ? " active" : ""}`}
+              onClick={() => {
+                setTab("debrief");
+                onDebrief();
+              }}
+            >
+              Debrief
             </button>
           </div>
+
+          {tab === "transcript" ? (
+            <div className="history-transcript">
+              {loadingTranscript ? (
+                <p className="history-transcript-status">Loading transcript…</p>
+              ) : transcriptError ? (
+                <p className="history-transcript-status error">{transcriptError}</p>
+              ) : transcript && transcript.length > 0 ? (
+                transcript.map((m) => (
+                  <MessageBubble
+                    key={m.id}
+                    role={m.role === "assistant" ? "assistant" : "user"}
+                    content={m.content}
+                  />
+                ))
+              ) : (
+                <p className="history-transcript-status">No messages in this session.</p>
+              )}
+            </div>
+          ) : (
+            <Debrief debrief={debrief} loading={loadingDebrief} error={debriefError} />
+          )}
         </div>
       )}
     </div>

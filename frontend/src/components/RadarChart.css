@@ -1,0 +1,37 @@
+/* ── Radar / spider chart ─────────────────────────────────────────────────────
+   SVG visual for the debrief's five rubric scores. Colours are MD3 tokens; the
+   data shape gets a soft primary glow to match the Stitch mockup. */
+.radar {
+  width: 100%;
+  max-width: 280px;
+  height: auto;
+  display: block;
+  margin: 0 auto;
+}
+
+.radar-ring,
+.radar-spoke {
+  fill: none;
+  stroke: var(--outline);
+  stroke-opacity: 0.25;
+  stroke-width: 0.5;
+}
+
+.radar-shape {
+  fill: var(--primary);
+  fill-opacity: 0.2;
+  stroke: var(--primary);
+  stroke-width: 1.2;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 0 4px rgba(173, 198, 255, 0.5));
+}
+
+.radar-dot {
+  fill: var(--primary);
+}
+
+.radar-label {
+  fill: var(--on-surface-variant);
+  font-size: 6.5px;
+  letter-spacing: 0.02em;
+}

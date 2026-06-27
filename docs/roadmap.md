@@ -49,7 +49,7 @@
 - [x] Always-on-top floating **overlay** mode (manual "Compact" toggle) + frameless/transparent window
 - [ ] OpenRouter OAuth PKCE flow
 - [ ] Encrypted token/key persistence (keys are stored in SQLite today, unencrypted)
-- [ ] Post-interview debrief mode (AI drops the interviewer persona, gives direct feedback) — a disabled "Go to Debrief" button is already wired into the History transcript card as the entry point
+- [x] Post-interview debrief mode (AI drops the interviewer persona, gives direct feedback) — the History card has a **Transcript / Debrief tab toggle**; the Debrief tab opens a **structured scorecard** (5-point hire verdict, a **five**-dimension 1-5 rubric incl. **pace**, strengths/improvements) shown as metric bars + a radar chart. Generated **once and cached** in `sessions.debrief` (re-opening costs no tokens), using the session's own model. To judge the real solution (not just the chat), the end-of-session labeling call was **upgraded to a vision call** that also transcribes the final on-screen code into `sessions.final_code`, which feeds the debrief. Binding: `GetDebrief`. See [history-feature-plan.md](history-feature-plan.md).
 - [ ] Session export (markdown transcript with timestamps)
 - [ ] (Overlay follow-ups) auto-collapse on window blur; custom min/close controls optional
 

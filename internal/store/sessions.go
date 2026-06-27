@@ -84,15 +84,73 @@ func (db *DB) ListSessions() ([]models.SessionSummary, error) {
 	return out, rows.Err()
 }
 
-// UpdateSessionMeta sets the AI-derived problem title and difficulty on a session
-// so it can be labeled in the history list. Empty strings are stored as-is.
-func (db *DB) UpdateSessionMeta(id, title, difficulty string) error {
+// UpdateSessionMeta sets the AI-derived problem title, difficulty, and final code
+// snapshot on a session so it can be labeled in the history list and later
+// debriefed. Empty strings are stored as-is.
+func (db *DB) UpdateSessionMeta(id, title, difficulty, finalCode string) error {
 	_, err := db.conn.Exec(
-		`UPDATE sessions SET problem_title = ?, difficulty = ? WHERE id = ?`,
-		title, difficulty, id,
+		`UPDATE sessions SET problem_title = ?, difficulty = ?, final_code = ? WHERE id = ?`,
+		title, difficulty, finalCode, id,
 	)
 	if err != nil {
 		return fmt.Errorf("store: update session meta: %w", err)
+	}
+	return nil
+}
+
+// GetSession returns a single session row (without the large final_code/debrief
+// columns, which have dedicated getters). Used by the debrief flow to recover the
+// session's model after the fact.
+func (db *DB) GetSession(id string) (models.Session, error) {
+	var s models.Session
+	var startedAt string
+	var endedAt, problemTitle, difficulty sql.NullString
+	err := db.conn.QueryRow(
+		`SELECT id, problem_id, model, started_at, ended_at, problem_title, difficulty
+		 FROM sessions WHERE id = ?`, id,
+	).Scan(&s.ID, &s.ProblemID, &s.Model, &startedAt, &endedAt, &problemTitle, &difficulty)
+	if err != nil {
+		return models.Session{}, fmt.Errorf("store: get session: %w", err)
+	}
+	s.StartedAt = parseDBTime(startedAt)
+	if endedAt.Valid && endedAt.String != "" {
+		if t := parseDBTime(endedAt.String); !t.IsZero() {
+			s.EndedAt = &t
+		}
+	}
+	s.ProblemTitle = problemTitle.String
+	s.Difficulty = difficulty.String
+	return s, nil
+}
+
+// GetSessionFinalCode returns the text snapshot of the candidate's final code,
+// captured at session end. Empty when none was captured.
+func (db *DB) GetSessionFinalCode(id string) (string, error) {
+	var code sql.NullString
+	err := db.conn.QueryRow(`SELECT final_code FROM sessions WHERE id = ?`, id).Scan(&code)
+	if err != nil {
+		return "", fmt.Errorf("store: get session final code: %w", err)
+	}
+	return code.String, nil
+}
+
+// GetSessionDebrief returns the cached post-interview debrief JSON for a session,
+// or "" if none has been generated yet.
+func (db *DB) GetSessionDebrief(id string) (string, error) {
+	var debrief sql.NullString
+	err := db.conn.QueryRow(`SELECT debrief FROM sessions WHERE id = ?`, id).Scan(&debrief)
+	if err != nil {
+		return "", fmt.Errorf("store: get session debrief: %w", err)
+	}
+	return debrief.String, nil
+}
+
+// SaveSessionDebrief caches the generated debrief JSON on a session so re-opening
+// it costs no tokens.
+func (db *DB) SaveSessionDebrief(id, debrief string) error {
+	_, err := db.conn.Exec(`UPDATE sessions SET debrief = ? WHERE id = ?`, debrief, id)
+	if err != nil {
+		return fmt.Errorf("store: save session debrief: %w", err)
 	}
 	return nil
 }

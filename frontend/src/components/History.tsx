@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import {
   ListSessions,
   GetSessionTranscript,
+  GetDebrief,
   DeleteSession,
   models,
 } from "../lib/wailsBridge";
@@ -20,6 +21,13 @@ export default function History() {
   const [transcripts, setTranscripts] = useState<Record<string, models.Message[]>>({});
   const [transcriptLoading, setTranscriptLoading] = useState<string | null>(null);
   const [transcriptErrors, setTranscriptErrors] = useState<Record<string, string>>({});
+
+  // Debrief is generated lazily the first time a card's Debrief tab is opened and
+  // cached per-card, mirroring the transcript pattern above. The backend also
+  // caches it, so a later app run still returns instantly.
+  const [debriefs, setDebriefs] = useState<Record<string, models.Debrief>>({});
+  const [debriefLoading, setDebriefLoading] = useState<string | null>(null);
+  const [debriefErrors, setDebriefErrors] = useState<Record<string, string>>({});
 
   // Load the session list on mount.
   useEffect(() => {
@@ -59,6 +67,23 @@ export default function History() {
       setTranscriptErrors((prev) => ({ ...prev, [id]: e?.message || String(e) }));
     } finally {
       setTranscriptLoading((cur) => (cur === id ? null : cur));
+    }
+  }
+
+  // Ensure a card's debrief is loaded (idempotent): generate + cache it on first
+  // request, and no-op if it's already loaded or in flight.
+  async function ensureDebrief(id: string) {
+    if (debriefs[id] || debriefLoading === id) return;
+
+    setDebriefLoading(id);
+    setDebriefErrors((prev) => ({ ...prev, [id]: "" }));
+    try {
+      const d = await GetDebrief(id);
+      setDebriefs((prev) => ({ ...prev, [id]: d }));
+    } catch (e: any) {
+      setDebriefErrors((prev) => ({ ...prev, [id]: e?.message || String(e) }));
+    } finally {
+      setDebriefLoading((cur) => (cur === id ? null : cur));
     }
   }
 
@@ -103,7 +128,11 @@ export default function History() {
                 transcript={transcripts[s.id]}
                 loadingTranscript={transcriptLoading === s.id}
                 transcriptError={transcriptErrors[s.id]}
+                debrief={debriefs[s.id]}
+                loadingDebrief={debriefLoading === s.id}
+                debriefError={debriefErrors[s.id]}
                 onToggle={() => toggle(s.id)}
+                onDebrief={() => ensureDebrief(s.id)}
                 onDelete={() => remove(s.id)}
               />
             ))}

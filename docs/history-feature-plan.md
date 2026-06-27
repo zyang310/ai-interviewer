@@ -85,8 +85,32 @@ New files (one component + its own CSS each, per the rules):
 - `wails dev`: run a short session → **End** → open **History**: row appears immediately; title/difficulty fill in shortly after (async extraction); **expand** → transcript renders via `MessageBubble`; **delete** → row disappears and stays gone after an app restart. Confirm old/pre‑migration sessions show the fallback title and a correctly computed duration.
 - Optional UI‑only pass: `cd frontend && npm run dev` with the Wails calls stubbed (they no‑op in a plain browser).
 
+## Debrief (implemented — extends this feature)
+The expanded history card has a **Transcript / Debrief tab toggle**; selecting **Debrief** opens an AI
+**scorecard** for the finished session, rendered by `components/Debrief.tsx`.
+
+- **Cheap by design.** Generated lazily the first time the Debrief tab is opened by `App.GetDebrief(id)`
+  and **cached** in a new `sessions.debrief` column — re-opening reads from SQLite (zero tokens). One
+  text call, capped via the shared `max_tokens`, on the **session's own model**. The card defaults to
+  the **Transcript** tab, so merely expanding a card never spends tokens.
+- **Real code context.** Transcripts never stored screenshots, so to judge the actual solution the
+  end-of-session call was upgraded: `ExtractProblemMeta` → `ExtractSessionMeta` now takes the final
+  screenshot (one vision call, folded into the existing labeling work) and also returns the
+  candidate's final code, persisted to a new `sessions.final_code` column. `GenerateDebrief` reads
+  transcript + final code.
+- **Shape.** `models.Debrief{ verdict, summary, rubric{problemSolving,coding,communication,complexity,pace}, strengths[], improvements[] }`;
+  verdict is the 5-point hire scale, the rubric scores **five** dimensions 1-5 (0 = insufficient
+  evidence) — `pace` (time management) was added alongside the UI redesign. Parsing reuses the
+  brace-extraction tolerance from the label parser; scores are clamped, verdict normalised. Old cached
+  debriefs predate `pace`, so it deserialises to 0 (shown as "—") until regenerated — no migration.
+- **UI.** Two-column scorecard ported from the Stitch mockup: verdict chip + summary + Strengths /
+  To Improve lists on the left; a "Performance metrics" five-bar list and a `RadarChart.tsx` pentagon
+  (self-contained SVG, MD3 tokens, no chart dependency) on the right.
+- **Flow.** `History.tsx` lazy-loads/caches per card via the idempotent `ensureDebrief` (mirrors the
+  transcript cache); `SessionHistoryCard.tsx` owns the active tab and triggers the load on first
+  Debrief-tab open; binding `GetDebrief` in `lib/wailsBridge.ts`.
+
 ## Out of scope (future)
-- Debrief / feedback view (the button is a placeholder now).
 - Persisting screenshots / showing the problem image inside the transcript.
 - Search, filtering, pagination, and difficulty color‑coding.
-- Marking history "done" in `docs/roadmap.md` once implemented.
+- A "Regenerate debrief" action (intentionally omitted — the result is cached to avoid re-spend).

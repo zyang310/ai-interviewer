@@ -141,45 +141,50 @@ func (c *Client) Complete(ctx context.Context, model string, messages []ChatMess
 	return result.Choices[0].Message.Content, nil
 }
 
-// ProblemMeta is the AI-derived label for a finished session, shown in the
-// history list. Empty fields mean the model could not determine a value.
-type ProblemMeta struct {
+// SessionMeta is the AI-derived record for a finished session: the history-list
+// label (title/difficulty) plus the candidate's final on-screen solution,
+// transcribed to text. Empty fields mean the model could not determine a value.
+type SessionMeta struct {
 	Title      string `json:"title"`
 	Difficulty string `json:"difficulty"`
+	Code       string `json:"code"` // candidate's final solution from the screen, "" if none visible
 }
 
-// ExtractProblemMeta derives a short problem title and difficulty from a finished
-// session's transcript, for the history list. It reuses Complete (so max_tokens is
-// already capped) and is best-effort: callers should treat an error or empty
-// fields as "no label" and fall back to a generic title. The interview stays
-// screen-driven; this only labels the session after the fact.
-func (c *Client) ExtractProblemMeta(ctx context.Context, model, transcript string) (ProblemMeta, error) {
+// ExtractSessionMeta derives a short problem title, difficulty, and a text copy of
+// the candidate's final code from a finished session's transcript plus a final
+// screenshot of their screen. The screenshot rides along as a vision part (text
+// only when screenshotB64 is empty). It reuses Complete (so max_tokens is already
+// capped) and is best-effort: callers should treat an error or empty fields as "no
+// data" and fall back. The interview stays screen-driven; this only labels and
+// snapshots the session after the fact, feeding the later debrief real code.
+func (c *Client) ExtractSessionMeta(ctx context.Context, model, transcript, screenshotB64 string) (SessionMeta, error) {
 	messages := []ChatMessage{
-		{Role: "system", Content: ProblemMetaPrompt},
-		{Role: "user", Content: transcript},
+		{Role: "system", Content: SessionMetaPrompt},
+		BuildUserMessage(transcript, screenshotB64),
 	}
 	raw, err := c.Complete(ctx, model, messages)
 	if err != nil {
-		return ProblemMeta{}, err
+		return SessionMeta{}, err
 	}
-	return parseProblemMeta(raw)
+	return parseSessionMeta(raw)
 }
 
-// parseProblemMeta pulls the {title, difficulty} JSON object out of a model reply,
-// tolerating code fences or surrounding prose, and normalises difficulty to one of
-// Easy/Medium/Hard (or "" when unrecognised).
-func parseProblemMeta(raw string) (ProblemMeta, error) {
+// parseSessionMeta pulls the {title, difficulty, code} JSON object out of a model
+// reply, tolerating code fences or surrounding prose, and normalises difficulty to
+// one of Easy/Medium/Hard (or "" when unrecognised).
+func parseSessionMeta(raw string) (SessionMeta, error) {
 	s := strings.TrimSpace(raw)
 	// Keep only the outermost {...} so stray fences or prose don't break parsing.
 	if i, j := strings.Index(s, "{"), strings.LastIndex(s, "}"); i >= 0 && j >= i {
 		s = s[i : j+1]
 	}
-	var meta ProblemMeta
+	var meta SessionMeta
 	if err := json.Unmarshal([]byte(s), &meta); err != nil {
-		return ProblemMeta{}, fmt.Errorf("ai: parse problem meta: %w", err)
+		return SessionMeta{}, fmt.Errorf("ai: parse session meta: %w", err)
 	}
 	meta.Title = strings.TrimSpace(meta.Title)
 	meta.Difficulty = normaliseDifficulty(meta.Difficulty)
+	meta.Code = strings.TrimSpace(meta.Code)
 	return meta, nil
 }
 
@@ -196,6 +201,95 @@ func normaliseDifficulty(d string) string {
 	default:
 		return ""
 	}
+}
+
+// GenerateDebrief produces a post-interview scorecard from a finished session's
+// transcript plus the candidate's captured final code (which may be empty). It
+// reuses Complete (so max_tokens is already capped) and is a one-shot text call —
+// the screenshot was already turned into text at session end, so no vision cost
+// here. Callers cache the result so it is generated at most once per session.
+func (c *Client) GenerateDebrief(ctx context.Context, model, transcript, finalCode string) (models.Debrief, error) {
+	content := transcript
+	if strings.TrimSpace(finalCode) != "" {
+		content += "\n\n=== Candidate's final code (transcribed from their screen) ===\n" + finalCode
+	}
+	messages := []ChatMessage{
+		{Role: "system", Content: DebriefPrompt},
+		{Role: "user", Content: content},
+	}
+	raw, err := c.Complete(ctx, model, messages)
+	if err != nil {
+		return models.Debrief{}, err
+	}
+	return parseDebrief(raw)
+}
+
+// parseDebrief pulls the scorecard JSON object out of a model reply, tolerating
+// code fences or surrounding prose, and normalises it: verdict to the fixed
+// hire-scale set (or ""), rubric scores clamped to 0-5, and empty/whitespace
+// bullets dropped.
+func parseDebrief(raw string) (models.Debrief, error) {
+	s := strings.TrimSpace(raw)
+	// Keep only the outermost {...} so stray fences or prose don't break parsing.
+	if i, j := strings.Index(s, "{"), strings.LastIndex(s, "}"); i >= 0 && j >= i {
+		s = s[i : j+1]
+	}
+	var d models.Debrief
+	if err := json.Unmarshal([]byte(s), &d); err != nil {
+		return models.Debrief{}, fmt.Errorf("ai: parse debrief: %w", err)
+	}
+	d.Verdict = normaliseVerdict(d.Verdict)
+	d.Summary = strings.TrimSpace(d.Summary)
+	d.Rubric.ProblemSolving = clampScore(d.Rubric.ProblemSolving)
+	d.Rubric.Coding = clampScore(d.Rubric.Coding)
+	d.Rubric.Communication = clampScore(d.Rubric.Communication)
+	d.Rubric.Complexity = clampScore(d.Rubric.Complexity)
+	d.Rubric.Pace = clampScore(d.Rubric.Pace)
+	d.Strengths = cleanBullets(d.Strengths)
+	d.Improvements = cleanBullets(d.Improvements)
+	return d, nil
+}
+
+// normaliseVerdict canonicalises a free-form verdict to one of the 5-point
+// hire-scale labels, or "" if it doesn't match.
+func normaliseVerdict(v string) string {
+	switch strings.ToLower(strings.Join(strings.Fields(v), " ")) {
+	case "strong hire":
+		return "Strong Hire"
+	case "hire":
+		return "Hire"
+	case "lean hire":
+		return "Lean Hire"
+	case "no hire":
+		return "No Hire"
+	case "strong no hire":
+		return "Strong No Hire"
+	default:
+		return ""
+	}
+}
+
+// clampScore bounds a rubric score to 0-5 (0 = not enough evidence).
+func clampScore(n int) int {
+	if n < 0 {
+		return 0
+	}
+	if n > 5 {
+		return 5
+	}
+	return n
+}
+
+// cleanBullets trims each bullet and drops empty ones, returning nil when none
+// remain so the JSON boundary sends an empty list rather than [""] noise.
+func cleanBullets(in []string) []string {
+	var out []string
+	for _, s := range in {
+		if t := strings.TrimSpace(s); t != "" {
+			out = append(out, t)
+		}
+	}
+	return out
 }
 
 // ListModels returns the OpenRouter model catalog shaped for the picker UI.

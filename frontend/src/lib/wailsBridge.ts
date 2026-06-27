@@ -8,6 +8,7 @@ export {
   EnterOverlayMode,
   ExitOverlayMode,
   GetAuthStatus,
+  GetDebrief,
   GetHotkeyStatus,
   GetLatestScreenshot,
   GetPreferences,

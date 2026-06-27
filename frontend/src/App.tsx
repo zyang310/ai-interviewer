@@ -125,12 +125,16 @@ function App() {
     return () => clearInterval(id);
   }, [sessionStartedAt]);
 
-  // Route to the settings page if no API key is configured.
+  // Route to the settings page if no API key is configured — but only once the
+  // user is past setup and auth has loaded. Without these guards it fires on the
+  // initial default auth state (openRouterConfigured = false, before GetAuthStatus
+  // resolves) and pins the view to settings, so "Continue to Hub" lands on Settings
+  // even for configured users.
   useEffect(() => {
-    if (!authStatus.openRouterConfigured) {
+    if (authLoaded && setupDone && !authStatus.openRouterConfigured) {
       setView("settings");
     }
-  }, [authStatus.openRouterConfigured]);
+  }, [authLoaded, setupDone, authStatus.openRouterConfigured]);
 
   // Global voice hotkey: while enabled, each key press toggles recording — press
   // once to start, again to stop and send (same as the mic button). The backend

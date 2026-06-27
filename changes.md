@@ -1,1 +1,1 @@
-2. AI Behavioral interviewer
+1. move all testing in internal/ai to a seperate folder

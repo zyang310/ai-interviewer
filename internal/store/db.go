@@ -62,7 +62,9 @@ func (db *DB) migrate() error {
 			started_at    DATETIME NOT NULL,
 			ended_at      DATETIME,
 			problem_title TEXT,
-			difficulty    TEXT
+			difficulty    TEXT,
+			final_code    TEXT,
+			debrief       TEXT
 		);`,
 		`CREATE TABLE IF NOT EXISTS messages (
 			id         TEXT PRIMARY KEY,
@@ -89,6 +91,11 @@ func (db *DB) migrate() error {
 	migrations := []struct{ table, column, ddl string }{
 		{"sessions", "problem_title", "ALTER TABLE sessions ADD COLUMN problem_title TEXT"},
 		{"sessions", "difficulty", "ALTER TABLE sessions ADD COLUMN difficulty TEXT"},
+		// final_code holds the candidate's final on-screen solution, extracted to
+		// text by a vision call at session end; debrief caches the generated
+		// post-interview scorecard JSON so re-opening it costs no tokens.
+		{"sessions", "final_code", "ALTER TABLE sessions ADD COLUMN final_code TEXT"},
+		{"sessions", "debrief", "ALTER TABLE sessions ADD COLUMN debrief TEXT"},
 	}
 	for _, m := range migrations {
 		if err := db.addColumnIfMissing(m.table, m.column, m.ddl); err != nil {
