@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { cleanForDisplay } from "../lib/markdown";
 import "./Overlay.css";
 
 interface Message {
@@ -140,7 +141,9 @@ export default function Overlay({
                   <span className="overlay-history-role">
                     {m.role === "assistant" ? "AI" : "You"}
                   </span>
-                  <p className="overlay-history-text">{m.content}</p>
+                  <p className="overlay-history-text">
+                    {m.role === "assistant" ? cleanForDisplay(m.content) : m.content}
+                  </p>
                 </div>
               ))
             )}

@@ -58,7 +58,6 @@
 - [ ] Difficulty adaptation (AI adjusts hint level based on progress)
 - [ ] Timer / time pressure mode
 - [ ] Multi-problem interview sets (simulate a full interview round) — pairs well with Phase 6
-- [ ] ElevenLabs voice cloning (user uploads an interviewer voice sample)
 
 ### Phase 6 — Company Practice mode (opt-in, additive) — ☐ Planned
 

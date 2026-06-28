@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import Chat from "./components/Chat";
+import { cleanForDisplay } from "./lib/markdown";
 import CapturePanel from "./components/CapturePanel";
 import History from "./components/History";
 import HubReady from "./components/HubReady";
@@ -349,7 +350,9 @@ function App() {
       <Overlay
         messages={messages}
         latestAiText={
-          lastAi?.content || "Listening… the interviewer will respond as you work."
+          lastAi?.content
+            ? cleanForDisplay(lastAi.content)
+            : "Listening… the interviewer will respond as you work."
         }
         onEnd={handleEndFromOverlay}
         onExpand={exitOverlay}
