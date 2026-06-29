@@ -3,9 +3,12 @@ import {
   SetAPIKey,
   DeleteAPIKey,
   GetAuthStatus,
+  GetAppVersion,
   GetHotkeyStatus,
   GetPreferences,
+  CheckForUpdate,
   OpenInputMonitoringSettings,
+  OpenReleasePage,
   UpdatePreferences,
   models,
   hotkey,
@@ -33,7 +36,8 @@ type Section =
   | "voice"
   | "push-to-talk"
   | "capture"
-  | "privacy";
+  | "privacy"
+  | "about";
 
 interface NavItem {
   id: Section;
@@ -49,6 +53,7 @@ const NAV: NavItem[] = [
   { id: "push-to-talk", label: "Voice Hotkey", icon: "keyboard" },
   { id: "capture", label: "Capture Prefs", icon: "settings_input_component" },
   { id: "privacy", label: "Privacy", icon: "security" },
+  { id: "about", label: "About", icon: "info" },
 ];
 
 interface Props {
@@ -83,6 +88,11 @@ export default function Settings({ authStatus, onAuthChange, onPrefsChange }: Pr
   // reports whether the global hook is live (drives the macOS permission hint).
   const [capturing, setCapturing] = useState(false);
   const [hkStatus, setHkStatus] = useState<hotkey.Status | null>(null);
+  // About: app version + on-demand update check (mirrors the launch-time banner).
+  const [appVersion, setAppVersion] = useState("");
+  const [checking, setChecking] = useState(false);
+  const [updateInfo, setUpdateInfo] = useState<models.UpdateInfo | null>(null);
+  const [checkedOnce, setCheckedOnce] = useState(false);
 
   // Load preferences on mount.
   useEffect(() => {
@@ -96,6 +106,7 @@ export default function Settings({ authStatus, onAuthChange, onPrefsChange }: Pr
         setTtsProvider(p.ttsProvider || "google");
       })
       .catch(() => {});
+    GetAppVersion().then(setAppVersion).catch(() => {});
     refreshHotkeyStatus();
   }, []);
 
@@ -283,6 +294,22 @@ export default function Settings({ authStatus, onAuthChange, onPrefsChange }: Pr
       setError(e?.message || String(e));
     } finally {
       setSaving(false);
+    }
+  }
+
+  // On-demand update check for the About section. Mirrors the launch-time banner
+  // but driven by the button; errors surface inline via the shared error line.
+  async function checkForUpdate() {
+    setChecking(true);
+    setError("");
+    setSuccess("");
+    try {
+      setUpdateInfo(await CheckForUpdate());
+      setCheckedOnce(true);
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    } finally {
+      setChecking(false);
     }
   }
 
@@ -795,6 +822,65 @@ export default function Settings({ authStatus, onAuthChange, onPrefsChange }: Pr
                   device. Your API tokens never leave the client except during authenticated
                   requests to OpenRouter.
                 </p>
+              </div>
+            </>
+          )}
+
+          {section === "about" && (
+            <>
+              <header className="settings-head">
+                <h1>About</h1>
+                <p>Version and software updates.</p>
+              </header>
+              <div className="settings-card">
+                <div className="settings-card-head">
+                  <span className="material-symbols-outlined">info</span>
+                  <h3 className="settings-card-title">AI Interviewer</h3>
+                </div>
+                <div className="settings-status">
+                  Version: <span className="status-ok">{appVersion || "—"}</span>
+                </div>
+                <p className="settings-hint">
+                  Updates are published on GitHub. The app is unsigned, so installing one
+                  means downloading the new version and replacing the app — you may need to
+                  right-click → Open (or run <code>xattr -cr</code>) the first time.
+                </p>
+                <div className="settings-field-row">
+                  <button
+                    className="btn btn-primary"
+                    onClick={checkForUpdate}
+                    disabled={checking}
+                  >
+                    {checking ? "Checking…" : "Check for updates"}
+                  </button>
+                  {updateInfo?.available && (
+                    <button
+                      className="btn btn-ghost btn-icon"
+                      onClick={() =>
+                        OpenReleasePage(updateInfo.downloadUrl || updateInfo.releaseUrl)
+                      }
+                    >
+                      <span className="material-symbols-outlined">download</span>
+                      Download {updateInfo.latestVersion}
+                    </button>
+                  )}
+                </div>
+                {checkedOnce && !checking && (
+                  updateInfo?.available ? (
+                    <p className="settings-hint">
+                      <span className="status-ok">●</span> {updateInfo.latestVersion} is
+                      available — you have {updateInfo.currentVersion}.
+                    </p>
+                  ) : updateInfo?.latestVersion ? (
+                    <p className="settings-hint">
+                      <span className="status-ok">●</span> You're on the latest version.
+                    </p>
+                  ) : (
+                    <p className="settings-hint settings-hint-muted">
+                      No published releases to compare against yet.
+                    </p>
+                  )
+                )}
               </div>
             </>
           )}

@@ -8,6 +8,7 @@ import Overlay from "./components/Overlay";
 import RegionSelector from "./components/RegionSelector";
 import Settings from "./components/Settings";
 import SetupPage from "./components/SetupPage";
+import UpdateBanner from "./components/UpdateBanner";
 import WindowControls from "./components/WindowControls";
 import {
   EventsOn,
@@ -26,6 +27,7 @@ import {
 } from "./lib/wailsBridge";
 import { useVoiceRecorder } from "./lib/useVoiceRecorder";
 import { useAudioPlayer } from "./lib/useAudioPlayer";
+import { useUpdateCheck } from "./lib/useUpdateCheck";
 import "./App.css";
 
 interface ChatMessage {
@@ -65,6 +67,8 @@ function App() {
   // handlers read the latest value without a stale closure.
   const recorder = useVoiceRecorder();
   const player = useAudioPlayer();
+  // Launch-time "newer release available?" check; drives the hub banner below.
+  const { update, dismiss: dismissUpdate } = useUpdateCheck();
   const [voiceMode, setVoiceMode] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
   const voiceModeRef = useRef(false);
@@ -398,6 +402,12 @@ function App() {
       </nav>
 
       <div className="app-content">
+        {/* Update-available banner — idle screens only, never over the overlay
+            or mid-interview (preserves the transparent overlay invariant). */}
+        {update && !isActive && (
+          <UpdateBanner update={update} onDismiss={dismissUpdate} />
+        )}
+
         {/* Warning banner (approaching time limit) */}
         {nearLimit && (
           <div className="app-warning">

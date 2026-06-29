@@ -13,6 +13,11 @@ import (
 //go:embed all:frontend/dist
 var assets embed.FS
 
+// version is the app's release version, injected at build time via
+// -ldflags "-X main.version=vX.Y.Z" (see .github/workflows/release.yml). It
+// stays "dev" for local builds, which suppresses the in-app update check.
+var version = "dev"
+
 func main() {
 	app, err := NewApp()
 	if err != nil {

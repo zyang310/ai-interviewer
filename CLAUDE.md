@@ -27,13 +27,14 @@ A desktop app that runs a **live AI mock coding interview**. The user codes in t
 | `internal/ai/` | OpenRouter client (`client.go`, incl. `ExtractProblemMeta` for history labels) + prompts (`prompts.go`: interviewer system prompt + `ProblemMetaPrompt`). |
 | `internal/voice/` | ElevenLabs client (`client.go`): Scribe STT, Flash TTS, voice catalog. |
 | `internal/googletts/` | Google Cloud client (`client.go`): TTS (synthesize + English voice catalog) **and** STT (`Transcribe`). Satisfies the same `Synthesize`/`ListVoices`/`Transcribe` shapes as `internal/voice`. |
+| `internal/updater/` | GitHub-release update check (`updater.go`): compares the build's `main.version` against the latest release (semver, `golang.org/x/mod/semver`) so the UI can offer a download. External HTTP, mirroring `internal/ai`. Pure compare logic is unit-tested. |
 | `internal/capture/` | Screen capture + region cropping. |
 | `internal/hotkey/` | Global voice-hotkey keyboard hook (`listener.go`, via `robotn/gohook`) + hotkey spec↔keycode↔label mapping (`keymap.go`). Emits a Wails `ptt:down` event per press (frontend toggles recording on it); passive (doesn't swallow the key). |
 | `internal/store/` | SQLite (`data.db`): sessions + messages (transcripts), preferences, API keys. Session-history reads/writes (`ListSessions`, `GetSessionTranscript`, `UpdateSessionMeta`, `DeleteSession`) live in `sessions.go`. |
-| `internal/models/` | Structs that cross the Wails boundary (Session, Message, Preferences, AuthStatus, Model, Voice). |
+| `internal/models/` | Structs that cross the Wails boundary (Session, Message, Preferences, AuthStatus, Model, Voice, UpdateInfo). |
 | `frontend/src/App.tsx` | UI shell: floating pill nav → idle hub / active session / overlay. |
-| `frontend/src/components/` | One component + its own CSS each (SetupPage, HubReady, CapturePanel, RegionSelector, Chat, MessageBubble, Overlay, Settings, ModelPicker, VoicePicker, WindowControls, History, SessionHistoryCard, Debrief, RadarChart). |
-| `frontend/src/lib/` | `wailsBridge.ts` (single import point for bound Go methods + models + runtime `EventsOn`/`EventsOff`) + hooks (`useVoiceRecorder`, `useAudioPlayer`) + `hotkey.ts` (browser mirror of the Go keymap, for the Settings hotkey-capture UI) + `format.ts` (history date/duration/model formatting). |
+| `frontend/src/components/` | One component + its own CSS each (SetupPage, HubReady, CapturePanel, RegionSelector, Chat, MessageBubble, Overlay, Settings, ModelPicker, VoicePicker, WindowControls, History, SessionHistoryCard, Debrief, RadarChart, UpdateBanner). |
+| `frontend/src/lib/` | `wailsBridge.ts` (single import point for bound Go methods + models + runtime `EventsOn`/`EventsOff`) + hooks (`useVoiceRecorder`, `useAudioPlayer`, `useUpdateCheck`) + `hotkey.ts` (browser mirror of the Go keymap, for the Settings hotkey-capture UI) + `format.ts` (history date/duration/model formatting). |
 | `frontend/src/style.css` | MD3 design tokens (`:root` CSS variables) + global reset. |
 | `frontend/wailsjs/` | Auto-generated bindings — **do not hand-edit**. |
 | `docs/` | Roadmap, architecture reference, feature plans. |
@@ -69,3 +70,4 @@ A desktop app that runs a **live AI mock coding interview**. The user codes in t
 - [docs/voice-integration-plan.md](docs/voice-integration-plan.md) — voice (ElevenLabs) implementation plan (Phase 2)
 - [docs/push-to-talk-plan.md](docs/push-to-talk-plan.md) — global voice hotkey (toggle) design reference + the global-vs-in-app scope decision (Phase 3, implemented)
 - [docs/history-feature-plan.md](docs/history-feature-plan.md) — session history feature plan + storage/data-flow notes (Phase 3, implemented)
+- [docs/ci-cd-and-auto-update.md](docs/ci-cd-and-auto-update.md) — **CI/CD, releases & the in-app updater explained** (concepts + design trade-offs); original design notes in [docs/ci-cd-and-auto-update-plan.md](docs/ci-cd-and-auto-update-plan.md)

@@ -221,3 +221,4 @@ To list selectable models: `GET https://openrouter.ai/api/v1/models` (see [model
 - The frontend's only voice role: record raw mic audio (`MediaRecorder`) and play audio bytes returned from Go. All processing and API calls happen in Go.
 - TTS is non-streaming in v1: Go returns the full MP3 (base64) and the frontend plays the whole clip. Chunked streaming via Wails runtime events is a later follow-up.
 - For typed messages with voice mode off, skip ElevenLabs entirely — send text straight to OpenRouter and display the reply as text. Voice mode also speaks typed replies.
+- **Distribution & updates** (macOS, unsigned): CI builds on every `main` push; `vX.Y.Z` tags publish a public GitHub Release; on launch the app checks for a newer release (`internal/updater`, bound via `CheckForUpdate`/`GetAppVersion`/`OpenReleasePage`) and shows a download banner. Full explainer: [ci-cd-and-auto-update.md](ci-cd-and-auto-update.md).

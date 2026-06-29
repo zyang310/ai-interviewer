@@ -8,6 +8,7 @@
 - The **always-on-top floating overlay** bar (a Phase 4 item) was built early — entered via the "Compact" button during a session.
 - **Voice (Phase 2) is built (non-streaming v1).** Click-to-toggle mic → ElevenLabs Scribe (STT) → the normal interview loop → ElevenLabs Flash (TTS) spoken reply when "voice mode" is on. Voice selection lives in Settings; the overlay's "Live" indicator + mic are wired for real. Streaming TTS/AI-text is deferred.
 - **Phase 3 — UX** is in progress: **a global voice hotkey is built** (configurable, default `Right ⌥ Option`; press to start, press again to stop) and the **session history view is built** (expandable past-session list with full transcripts + delete, plus AI-derived problem title + difficulty).
+- **Distribution + auto-update (macOS) is built:** GitHub Actions builds on every push to `main` and publishes a public, downloadable Release on each `vX.Y.Z` tag; the app checks GitHub on launch and shows an "update available" banner. Unsigned (notify-and-download, not silent). See [ci-cd-and-auto-update.md](ci-cd-and-auto-update.md).
 
 ## Implementation phases
 
@@ -52,6 +53,15 @@
 - [x] Post-interview debrief mode (AI drops the interviewer persona, gives direct feedback) — the History card has a **Transcript / Debrief tab toggle**; the Debrief tab opens a **structured scorecard** (5-point hire verdict, a **five**-dimension 1-5 rubric incl. **pace**, strengths/improvements) shown as metric bars + a radar chart. Generated **once and cached** in `sessions.debrief` (re-opening costs no tokens), using the session's own model. To judge the real solution (not just the chat), the end-of-session labeling call was **upgraded to a vision call** that also transcribes the final on-screen code into `sessions.final_code`, which feeds the debrief. Binding: `GetDebrief`. See [history-feature-plan.md](history-feature-plan.md).
 - [ ] Session export (markdown transcript with timestamps)
 - [ ] (Overlay follow-ups) auto-collapse on window blur; custom min/close controls optional
+
+### Distribution & auto-update (macOS) — ✅ Done
+
+> Concepts + design trade-offs: [ci-cd-and-auto-update.md](ci-cd-and-auto-update.md).
+
+- [x] CI on every push to `main` ([build.yml](../.github/workflows/build.yml)): `go build`/`test`/`gofmt` + `tsc`, then a universal `wails build` uploaded as a run artifact.
+- [x] Tag-driven public releases ([release.yml](../.github/workflows/release.yml)): pushing `vX.Y.Z` builds the universal `.app`, zips it, and publishes a GitHub Release — the public download *and* the updater's source of truth.
+- [x] In-app update check (`internal/updater` → GitHub releases API, semver compare) surfaced as a hub banner + Settings → About. **Unsigned** — installs are manual (notify-and-download) with a one-time Gatekeeper step.
+- [ ] Code signing + notarization (Apple Developer account) → silent updates via Sparkle — **deferred**.
 
 ### Phase 5 — Stretch goals
 

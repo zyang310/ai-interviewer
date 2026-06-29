@@ -2,6 +2,20 @@
 
 A desktop app that acts as a live AI-powered mock coding interview coach. You code in your own IDE while the app captures your screen and provides real-time Socratic interviewer feedback.
 
+## Download & Install (macOS)
+
+Grab the latest build from the [**Releases**](https://github.com/zyang310/ai-interviewer/releases) page — download the `.zip`, unzip it, and drag **ai-interviewer.app** into your **Applications** folder. It's a **universal binary** that runs natively on both Apple Silicon and Intel Macs.
+
+> **First launch (one time):** the app is **unsigned**, so macOS Gatekeeper blocks it the first time. Either **right-click the app → Open → Open**, or run:
+> ```bash
+> xattr -cr "/Applications/ai-interviewer.app"
+> ```
+> After doing this once, it opens normally — this is expected for unsigned apps.
+
+Once installed, the app **checks for updates on launch** and shows a banner when a newer version is out; click **Download** and repeat the drag-to-Applications step. For how releases and updates actually work, see [docs/ci-cd-and-auto-update.md](docs/ci-cd-and-auto-update.md).
+
+The sections below are for **building from source** instead.
+
 ## Prerequisites
 
 | Tool | Version | Install |

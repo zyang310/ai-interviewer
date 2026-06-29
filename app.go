@@ -16,6 +16,7 @@ import (
 	"ai-interviewer/internal/hotkey"
 	"ai-interviewer/internal/models"
 	"ai-interviewer/internal/store"
+	"ai-interviewer/internal/updater"
 	"ai-interviewer/internal/voice"
 
 	"github.com/google/uuid"
@@ -554,6 +555,36 @@ func (a *App) ListAvailableModels() ([]models.Model, error) {
 		return nil, fmt.Errorf("set an OpenRouter API key first")
 	}
 	return a.aiClient.ListModels(a.ctx)
+}
+
+// ---------------------------------------------------------------------------
+// Updates
+// ---------------------------------------------------------------------------
+
+// GetAppVersion returns the running app's version (e.g. "v0.1.0"), or "dev" for
+// local builds. Injected at build time via -ldflags; see main.go and
+// docs/ci-cd-and-auto-update.md.
+func (a *App) GetAppVersion() string {
+	return version
+}
+
+// CheckForUpdate asks GitHub whether a newer release than the running build
+// exists, so the frontend can surface a download prompt. Dev builds always
+// report no update. The error is returned so the caller can fail silently
+// (a failed check should never disrupt the app).
+func (a *App) CheckForUpdate() (models.UpdateInfo, error) {
+	return updater.Check(a.ctx, version)
+}
+
+// OpenReleasePage opens a release URL (the GitHub release page or its .zip
+// asset) in the user's default browser so they can download an update. The app
+// is unsigned and does not self-replace — installation is manual.
+func (a *App) OpenReleasePage(url string) error {
+	if url == "" {
+		return fmt.Errorf("no download URL available")
+	}
+	runtime.BrowserOpenURL(a.ctx, url)
+	return nil
 }
 
 // ---------------------------------------------------------------------------

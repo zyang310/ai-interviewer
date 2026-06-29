@@ -2,11 +2,13 @@
 // Components should import from here, never from wailsjs/ directly.
 
 export {
+  CheckForUpdate,
   DeleteAPIKey,
   DeleteSession,
   EndSession,
   EnterOverlayMode,
   ExitOverlayMode,
+  GetAppVersion,
   GetAuthStatus,
   GetDebrief,
   GetHotkeyStatus,
@@ -19,6 +21,7 @@ export {
   ListVoices,
   MinimiseWindow,
   OpenInputMonitoringSettings,
+  OpenReleasePage,
   PreviewVoice,
   QuitApp,
   SendMessage,

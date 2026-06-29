@@ -1,0 +1,89 @@
+# Build — runs on every push to main and on PRs targeting main.
+#
+# Purpose: prove the app always compiles and passes checks, and produce a
+# downloadable macOS build for testing. This does NOT publish a public release
+# (see release.yml, which runs on version tags). The artifact here is attached to
+# the workflow run and is only reachable by people with repo access.
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Cancel an in-progress run when a newer commit lands on the same ref.
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build & verify (macOS universal)
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod # stays in sync with the module's Go version
+          cache-dependency-path: go.sum
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Wails CLI
+        run: |
+          go install github.com/wailsapp/wails/v2/cmd/wails@v2.12.0
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      # ── Backend checks ───────────────────────────────────────────────────
+      - name: Go build
+        run: go build ./...
+
+      - name: Go test
+        run: go test ./...
+
+      - name: Gofmt
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "::error::These files are not gofmt-clean:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      # ── Frontend checks ──────────────────────────────────────────────────
+      - name: Install frontend deps
+        working-directory: frontend
+        run: npm ci
+
+      - name: Frontend type-check
+        working-directory: frontend
+        run: npx tsc --noEmit
+
+      # ── Full app build ───────────────────────────────────────────────────
+      # wails build also runs the frontend build (wails.json frontend:build).
+      # The version is a throwaway "dev-<sha>" so these builds never look like a
+      # release to the in-app updater (it ignores non-semver versions).
+      - name: Wails build (darwin/universal)
+        run: wails build -platform darwin/universal -ldflags "-X main.version=dev-${{ github.sha }}"
+
+      - name: Package .app
+        run: |
+          cd build/bin
+          app="$(ls -d *.app | head -1)"
+          ditto -c -k --keepParent "$app" "AI-Interviewer-dev-${GITHUB_SHA::7}.zip"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AI-Interviewer-macos-universal
+          path: build/bin/AI-Interviewer-dev-*.zip
+          if-no-files-found: error

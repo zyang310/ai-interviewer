@@ -4,6 +4,8 @@ import {models} from '../models';
 import {hotkey} from '../models';
 import {capture} from '../models';
 
+export function CheckForUpdate():Promise<models.UpdateInfo>;
+
 export function DeleteAPIKey(arg1:string):Promise<void>;
 
 export function DeleteSession(arg1:string):Promise<void>;
@@ -13,6 +15,8 @@ export function EndSession(arg1:string):Promise<void>;
 export function EnterOverlayMode():Promise<void>;
 
 export function ExitOverlayMode():Promise<void>;
+
+export function GetAppVersion():Promise<string>;
 
 export function GetAuthStatus():Promise<models.AuthStatus>;
 
@@ -37,6 +41,8 @@ export function ListVoices():Promise<Array<models.Voice>>;
 export function MinimiseWindow():Promise<void>;
 
 export function OpenInputMonitoringSettings():Promise<void>;
+
+export function OpenReleasePage(arg1:string):Promise<void>;
 
 export function PreviewVoice(arg1:string):Promise<string>;
 

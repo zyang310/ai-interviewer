@@ -1,0 +1,51 @@
+/* Update-available banner — mirrors the .app-warning / .app-error banner system
+   in App.css, tinted with the primary (blue) accent. Shown on non-overlay idle
+   screens when a newer release exists. */
+.update-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 32px;
+  background-color: rgba(173, 198, 255, 0.1); /* var(--primary) #adc6ff @ 10% */
+  color: var(--primary);
+  font-size: 13px;
+  border-bottom: 1px solid rgba(173, 198, 255, 0.25);
+}
+
+.update-banner-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--primary);
+  animation: status-pulse 2s ease-in-out infinite; /* shared keyframe from App.css */
+  flex-shrink: 0;
+}
+
+.update-banner-text {
+  flex: 1;
+}
+
+.update-banner-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Compact the shared .btn for the slim banner row. */
+.update-banner .btn {
+  padding: 6px 12px;
+}
+
+.update-banner-dismiss {
+  background: none;
+  border: none;
+  color: var(--primary);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.update-banner-dismiss:hover {
+  color: var(--on-surface);
+}

@@ -9,5 +9,11 @@
   "author": {
     "name": "Zhi Hang Yang",
     "email": "zyang3104@gmail.com"
+  },
+  "info": {
+    "companyName": "Zhi Hang Yang",
+    "productName": "AI Interviewer",
+    "productVersion": "0.1.0",
+    "copyright": "© 2026 Zhi Hang Yang"
   }
 }
