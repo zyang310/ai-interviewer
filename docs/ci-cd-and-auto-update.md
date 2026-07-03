@@ -287,6 +287,29 @@ Finder → *Get Info* (from the plist).
 same command: `go build ./...`, `go test ./...`, `gofmt -l .`,
 `cd frontend && npx tsc --noEmit`, or `wails build`.
 
+## Adoption: how many people downloaded the app
+
+GitHub tracks a **`download_count` per release asset** for free — no backend, no
+in-app telemetry, nothing that leaves a user's machine. To total those counts across
+all releases:
+
+```bash
+go run ./cmd/downloads          # per-release breakdown + grand total
+go run ./cmd/downloads -json    # raw per-asset counts as JSON
+```
+
+Set `GITHUB_TOKEN` if you hit the unauthenticated rate limit (60 req/hr); a bare token
+with no scopes is enough for this public repo. Notes on what the number means:
+
+- It counts **downloads, not people** — GitHub does not dedupe by user, so treat it as a
+  rough adoption signal.
+- It counts only the **GitHub-hosted** asset. Mirrors, Homebrew casks, or any other
+  distribution channel are not included.
+
+This covers "how many downloads." Counting **sessions run** is a different problem: every
+session lives only in the user's local SQLite (`internal/store`), so there is no way to
+know without adding a telemetry backend — deliberately out of scope for now.
+
 ## Later: the path to silent updates
 
 If an Apple Developer account is ever added, this design upgrades without a rewrite:
