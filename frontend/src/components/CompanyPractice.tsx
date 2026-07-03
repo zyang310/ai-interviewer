@@ -64,6 +64,7 @@ export default function CompanyPractice({
   const [difficulty, setDifficulty] = useState<Difficulty>("All");
   const [sortKey, setSortKey] = useState<SortKey>("Frequency");
   const [page, setPage] = useState(1);
+  const [pageInput, setPageInput] = useState("1");
   // Top of the results area, scrolled into view on page change so each page starts
   // from the top rather than wherever the pager sat when clicked.
   const listTopRef = useRef<HTMLDivElement>(null);
@@ -185,6 +186,80 @@ export default function CompanyPractice({
     setPage(Math.min(pageCount, Math.max(1, p)));
     listTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
+
+  // Keep the editable page input in sync with the actual page (prev/next clicks,
+  // filter resets, clamps all flow through currentPage).
+  useEffect(() => {
+    setPageInput(String(currentPage));
+  }, [currentPage]);
+
+  // Commit a typed page number: normalise the display and jump only on a change.
+  function commitPageInput() {
+    const n = parseInt(pageInput, 10);
+    const target = Number.isNaN(n) ? currentPage : Math.min(pageCount, Math.max(1, n));
+    setPageInput(String(target));
+    if (target !== currentPage) goToPage(target);
+  }
+
+  // The pager, rendered both above (by the filters) and below the list. Null when
+  // everything fits on one page. Rendering the same element in two spots is fine —
+  // both page inputs bind to the same pageInput state.
+  const pager =
+    pageCount > 1 ? (
+      <div className="company-pagination">
+        <button
+          className="company-icon-btn"
+          disabled={currentPage <= 1}
+          onClick={() => goToPage(1)}
+          title="First page"
+        >
+          <span className="material-symbols-outlined">keyboard_double_arrow_left</span>
+        </button>
+        <button
+          className="company-icon-btn"
+          disabled={currentPage <= 1}
+          onClick={() => goToPage(currentPage - 1)}
+          title="Previous page"
+        >
+          <span className="material-symbols-outlined">chevron_left</span>
+        </button>
+        <span className="company-page-label">
+          Page{" "}
+          <input
+            className="company-page-input"
+            type="text"
+            inputMode="numeric"
+            value={pageInput}
+            onChange={(e) => setPageInput(e.target.value.replace(/[^0-9]/g, ""))}
+            onBlur={commitPageInput}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                commitPageInput();
+                (e.target as HTMLInputElement).blur();
+              }
+            }}
+            aria-label="Page number"
+          />{" "}
+          of {pageCount}
+        </span>
+        <button
+          className="company-icon-btn"
+          disabled={currentPage >= pageCount}
+          onClick={() => goToPage(currentPage + 1)}
+          title="Next page"
+        >
+          <span className="material-symbols-outlined">chevron_right</span>
+        </button>
+        <button
+          className="company-icon-btn"
+          disabled={currentPage >= pageCount}
+          onClick={() => goToPage(pageCount)}
+          title="Last page"
+        >
+          <span className="material-symbols-outlined">keyboard_double_arrow_right</span>
+        </button>
+      </div>
+    ) : null;
 
   async function startSingle(p: models.Problem) {
     if (!selected || starting) return;
@@ -318,6 +393,7 @@ export default function CompanyPractice({
                   </button>
                 ))}
               </div>
+              <div className="company-controls-pager">{pager}</div>
               <label className="company-sort">
                 Sort
                 <select
@@ -378,30 +454,7 @@ export default function CompanyPractice({
                 ))}
               </ul>
 
-              {pageCount > 1 && (
-                <div className="company-pagination">
-                  <button
-                    className="btn btn-ghost btn-icon"
-                    disabled={currentPage <= 1}
-                    onClick={() => goToPage(currentPage - 1)}
-                  >
-                    <span className="material-symbols-outlined">chevron_left</span>
-                    Prev
-                  </button>
-                  <span className="company-page-label">
-                    {startIdx + 1}–{startIdx + pagedProblems.length} of{" "}
-                    {visibleProblems.length}
-                  </span>
-                  <button
-                    className="btn btn-ghost btn-icon"
-                    disabled={currentPage >= pageCount}
-                    onClick={() => goToPage(currentPage + 1)}
-                  >
-                    Next
-                    <span className="material-symbols-outlined">chevron_right</span>
-                  </button>
-                </div>
-              )}
+              {pager}
               </>
             )}
           </>

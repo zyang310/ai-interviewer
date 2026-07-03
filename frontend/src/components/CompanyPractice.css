@@ -147,18 +147,27 @@
   color: var(--on-surface-variant);
 }
 
-/* ── Browse controls (difficulty chips + sort) ─────────────────────────── */
+/* ── Browse controls (difficulty chips · pager · sort) ─────────────────────
+   Three columns (1fr auto 1fr) so the centre column (the pager) is centred in
+   the row regardless of the chips'/sort's widths — this keeps the top pager
+   vertically aligned with the centred bottom pager. */
 .company-controls {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
   gap: 12px;
 }
 
 .company-chips {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
+  justify-self: start;
+}
+
+/* Centre column — empty (0 width) when everything fits on one page. */
+.company-controls-pager {
+  justify-self: center;
 }
 
 .company-chip {
@@ -191,6 +200,7 @@
   gap: 8px;
   font-size: 12px;
   color: var(--on-surface-variant);
+  justify-self: end;
 }
 
 .company-sort select {
@@ -283,9 +293,14 @@
   transition: background-color 0.15s, color 0.15s;
 }
 
-.company-icon-btn:hover {
+.company-icon-btn:hover:not(:disabled) {
   background-color: var(--surface-container-highest);
   color: var(--on-surface);
+}
+
+.company-icon-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
 }
 
 .company-icon-btn .material-symbols-outlined {
@@ -301,16 +316,44 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 16px;
+  gap: 8px;
   padding: 8px 0 4px;
+}
+
+/* Top placement: the pager sits inline in the filter row (between the chips and
+   the sort). Drop the standalone vertical padding so it aligns with them. */
+.company-controls .company-pagination {
+  padding: 0;
 }
 
 .company-page-label {
   font-size: 12px;
   color: var(--on-surface-variant);
   font-variant-numeric: tabular-nums;
-  min-width: 120px;
+  white-space: nowrap;
+  margin: 0 4px;
+}
+
+/* Editable page number — type + Enter/blur to jump. type="text" avoids the
+   number-input spinner arrows. */
+.company-page-input {
+  width: 3em;
+  margin: 0 2px;
+  padding: 4px 6px;
+  border: 1px solid var(--outline-variant);
+  border-radius: 8px;
+  background-color: var(--surface-container);
+  color: var(--on-surface);
+  font-family: inherit;
+  font-size: 12px;
   text-align: center;
+  vertical-align: middle;
+  font-variant-numeric: tabular-nums;
+}
+
+.company-page-input:focus {
+  outline: none;
+  border-color: var(--primary);
 }
 
 /* ── Mock confirm modal ────────────────────────────────────────────────── */
