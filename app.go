@@ -2,10 +2,8 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
-	"strings"
 	"time"
 
 	"ai-interviewer/internal/capture"
@@ -22,13 +20,15 @@ import (
 // App is the main application struct. Its exported methods are bound to the
 // frontend via Wails and callable as async TypeScript functions.
 type App struct {
-	ctx       context.Context
-	db        *store.DB
-	capturer  *capture.Capturer
-	providers *service.Providers // live API clients (OpenRouter + voice), swapped on key changes
+	ctx      context.Context
+	db       *store.DB         // kept concrete for shutdown's Close
+	capturer *capture.Capturer // kept concrete for shutdown + the thin capture bindings
+	hotkey   *hotkey.Listener  // kept concrete for shutdown + GetHotkeyStatus
+
 	interview *service.Interview // live-session service: session state, send loop, company starts
+	history   *service.History   // past-sessions service: list/read/delete + debrief
 	voice     *service.Voice     // speech service: STT/TTS resolution + audio conversion
-	hotkey    *hotkey.Listener   // global push-to-talk keyboard hook
+	settings  *service.Settings  // keys + preferences, incl. capturer/hotkey propagation
 }
 
 // NewApp initialises the application: opens the database, creates the screen
@@ -39,15 +39,20 @@ func NewApp() (*App, error) {
 		return nil, fmt.Errorf("app: open database: %w", err)
 	}
 
+	// Wire the service layer: the registry decides which API clients are live;
+	// each service sees only the narrow store/infra interfaces it needs.
 	capturer := capture.NewCapturer()
+	hook := hotkey.New()
 	providers := service.NewProviders()
+	interview := service.NewInterview(db, providers, capturer)
 	app := &App{
 		db:        db,
 		capturer:  capturer,
-		hotkey:    hotkey.New(),
-		providers: providers,
-		interview: service.NewInterview(db, providers, capturer),
+		hotkey:    hook,
+		interview: interview,
+		history:   service.NewHistory(db, providers, interview.ActiveID),
 		voice:     service.NewVoice(db, providers),
+		settings:  service.NewSettings(db, providers, capturer, hook),
 	}
 
 	// Restore each provider's client from its persisted API key (if any).
@@ -55,30 +60,20 @@ func NewApp() (*App, error) {
 		if key, err := db.GetAPIKey(provider); err != nil {
 			log.Printf("warning: could not read %s key: %v", provider, err)
 		} else if key != "" {
-			app.providers.SetKey(provider, key)
+			providers.SetKey(provider, key)
 		}
 	}
 
 	// Restore the saved capture region so on-demand captures honour it too.
-	app.applySavedRegion()
+	app.settings.ApplySavedRegion()
 
 	return app, nil
-}
-
-// applySavedRegion loads the persisted capture display/region and applies it to
-// the capturer. Best-effort: falls back to full primary display on any error.
-func (a *App) applySavedRegion() {
-	prefs, err := a.db.GetPreferences()
-	if err != nil {
-		return
-	}
-	a.capturer.SetRegion(prefs.CaptureDisplay, prefs.RegionX, prefs.RegionY, prefs.RegionW, prefs.RegionH)
 }
 
 // startup is called by Wails when the application is ready.
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
-	a.startHotkeyFromPrefs()
+	a.settings.ApplyHotkey(ctx)
 }
 
 // shutdown is called by Wails when the application is closing.
@@ -90,22 +85,6 @@ func (a *App) shutdown(ctx context.Context) {
 	}
 }
 
-// startHotkeyFromPrefs applies the saved push-to-talk preferences to the global
-// hook. The hook starts on first enable and is never restarted — enabling,
-// disabling, and rebinding all flow through Apply, which swaps guarded fields on
-// the running hook. Best-effort — a bad/empty key falls back to the default.
-func (a *App) startHotkeyFromPrefs() {
-	prefs, err := a.db.GetPreferences()
-	if err != nil {
-		return
-	}
-	spec, perr := hotkey.ParseSpec(prefs.PushToTalkKey)
-	if perr != nil {
-		spec, _ = hotkey.ParseSpec(hotkey.DefaultSpec)
-	}
-	a.hotkey.Apply(a.ctx, prefs.PushToTalkEnabled, spec)
-}
-
 // ---------------------------------------------------------------------------
 // Auth
 // ---------------------------------------------------------------------------
@@ -113,34 +92,19 @@ func (a *App) startHotkeyFromPrefs() {
 // SetAPIKey stores an API key for the given provider ("openrouter",
 // "elevenlabs", or "google") and activates it immediately. No restart required.
 func (a *App) SetAPIKey(provider, key string) error {
-	if err := a.db.SetAPIKey(provider, key); err != nil {
-		return err
-	}
-	a.providers.SetKey(provider, key)
-	return nil
+	return a.settings.SetAPIKey(provider, key)
 }
 
 // DeleteAPIKey removes the stored key for the given provider ("openrouter",
 // "elevenlabs", or "google") and deactivates its client immediately, so STT/TTS
 // provider resolution falls back to whatever remains configured. No restart needed.
 func (a *App) DeleteAPIKey(provider string) error {
-	if err := a.db.DeleteAPIKey(provider); err != nil {
-		return err
-	}
-	a.providers.SetKey(provider, "") // empty key deactivates the slot
-	return nil
+	return a.settings.DeleteAPIKey(provider)
 }
 
 // GetAuthStatus reports which API providers currently have keys configured.
 func (a *App) GetAuthStatus() models.AuthStatus {
-	dbKey, _ := a.db.GetAPIKey("openrouter")
-	elKey, _ := a.db.GetAPIKey("elevenlabs")
-	googleKey, _ := a.db.GetAPIKey("google")
-	return models.AuthStatus{
-		OpenRouterConfigured: dbKey != "",
-		ElevenLabsConfigured: elKey != "",
-		GoogleConfigured:     googleKey != "",
-	}
+	return a.settings.AuthStatus()
 }
 
 // ---------------------------------------------------------------------------
@@ -261,17 +225,7 @@ func (a *App) SnapshotDisplay(displayIndex int) (string, error) {
 // SetCaptureRegion persists the chosen display and sub-region (fractions 0..1 of
 // the display; a zero width means full display) and applies it to the capturer.
 func (a *App) SetCaptureRegion(displayIndex int, x, y, w, h float64) error {
-	prefs, err := a.db.GetPreferences()
-	if err != nil {
-		return err
-	}
-	prefs.CaptureDisplay = displayIndex
-	prefs.RegionX, prefs.RegionY, prefs.RegionW, prefs.RegionH = x, y, w, h
-	if err := a.db.SavePreferences(prefs); err != nil {
-		return err
-	}
-	a.capturer.SetRegion(displayIndex, x, y, w, h)
-	return nil
+	return a.settings.SetCaptureRegion(displayIndex, x, y, w, h)
 }
 
 // ---------------------------------------------------------------------------
@@ -280,95 +234,24 @@ func (a *App) SetCaptureRegion(displayIndex int, x, y, w, h float64) error {
 
 // ListSessions returns summaries of all past sessions.
 func (a *App) ListSessions() ([]models.SessionSummary, error) {
-	return a.db.ListSessions()
+	return a.history.List()
 }
 
 // GetSessionTranscript returns the full message history for a session.
 func (a *App) GetSessionTranscript(id string) ([]models.Message, error) {
-	return a.db.GetMessages(id)
+	return a.history.Transcript(id)
 }
 
 // DeleteSession permanently removes a past session and its transcript. The active
 // session can't be deleted — it must be ended first.
 func (a *App) DeleteSession(id string) error {
-	if active := a.interview.ActiveID(); active != "" && active == id {
-		return fmt.Errorf("cannot delete the active session — end it first")
-	}
-	return a.db.DeleteSession(id)
+	return a.history.Delete(id)
 }
 
-// buildTranscript renders stored messages as a plain "Speaker: text" transcript
-// for debrief generation. Temporary duplicate of the service-layer copy — it
-// moves out of app.go entirely when GetDebrief is extracted to the history
-// service.
-func buildTranscript(msgs []models.Message) string {
-	var b strings.Builder
-	for _, m := range msgs {
-		speaker := "Candidate"
-		if m.Role == "assistant" {
-			speaker = "Interviewer"
-		}
-		b.WriteString(speaker)
-		b.WriteString(": ")
-		b.WriteString(m.Content)
-		b.WriteString("\n")
-	}
-	return b.String()
-}
-
-// GetDebrief returns the post-interview feedback scorecard for a finished session.
-// It is generated lazily and cached: if a debrief was already produced it is read
-// straight from SQLite (zero tokens); otherwise it is generated once from the
-// transcript plus the captured final code, using the session's own model, then
-// persisted. Requires a configured AI client.
+// GetDebrief returns the post-interview feedback scorecard for a finished
+// session — generated lazily on first open, then cached in SQLite.
 func (a *App) GetDebrief(id string) (models.Debrief, error) {
-	aiClient := a.providers.AI()
-	if aiClient == nil {
-		return models.Debrief{}, fmt.Errorf("debrief: no AI provider configured — add an OpenRouter key in Settings")
-	}
-
-	// 1. Cached? Return it without spending any tokens.
-	if cached, err := a.db.GetSessionDebrief(id); err == nil && cached != "" {
-		var d models.Debrief
-		if jsonErr := json.Unmarshal([]byte(cached), &d); jsonErr == nil {
-			return d, nil
-		}
-		// A corrupt cache shouldn't block a fresh generation; fall through.
-	}
-
-	// 2. Gather the inputs: the session (for its model), the transcript, and the
-	//    captured final code.
-	sess, err := a.db.GetSession(id)
-	if err != nil {
-		return models.Debrief{}, err
-	}
-	msgs, err := a.db.GetMessages(id)
-	if err != nil {
-		return models.Debrief{}, err
-	}
-	if len(msgs) < 2 {
-		return models.Debrief{}, fmt.Errorf("debrief: this session is too short to assess")
-	}
-	finalCode, err := a.db.GetSessionFinalCode(id)
-	if err != nil {
-		return models.Debrief{}, err
-	}
-
-	// 3. Generate (one text call), with a fresh bounded context.
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	debrief, err := aiClient.GenerateDebrief(ctx, sess.Model, buildTranscript(msgs), finalCode)
-	if err != nil {
-		return models.Debrief{}, err
-	}
-
-	// 4. Cache it (best-effort — a failed write just means we regenerate next time).
-	if raw, mErr := json.Marshal(debrief); mErr == nil {
-		if sErr := a.db.SaveSessionDebrief(id, string(raw)); sErr != nil {
-			log.Printf("debrief: persist for %s: %v", id, sErr)
-		}
-	}
-	return debrief, nil
+	return a.history.Debrief(id)
 }
 
 // ---------------------------------------------------------------------------
@@ -377,19 +260,13 @@ func (a *App) GetDebrief(id string) (models.Debrief, error) {
 
 // GetPreferences returns the user's settings.
 func (a *App) GetPreferences() (models.Preferences, error) {
-	return a.db.GetPreferences()
+	return a.settings.Preferences()
 }
 
-// UpdatePreferences persists updated settings.
+// UpdatePreferences persists updated settings and propagates them to the
+// running capturer and global hotkey.
 func (a *App) UpdatePreferences(prefs models.Preferences) error {
-	if err := a.db.SavePreferences(prefs); err != nil {
-		return err
-	}
-	// Keep the capturer in sync with any region/display change.
-	a.capturer.SetRegion(prefs.CaptureDisplay, prefs.RegionX, prefs.RegionY, prefs.RegionW, prefs.RegionH)
-	// Enable/disable/re-key the global push-to-talk hook to match the new prefs.
-	a.startHotkeyFromPrefs()
-	return nil
+	return a.settings.Update(a.ctx, prefs)
 }
 
 // GetHotkeyStatus reports the global push-to-talk hook state so the UI can
@@ -412,11 +289,7 @@ func (a *App) OpenInputMonitoringSettings() {
 // picker. Saving a choice needs no binding here — the picker writes the selected
 // id to Preferences.Model through UpdatePreferences.
 func (a *App) ListAvailableModels() ([]models.Model, error) {
-	aiClient := a.providers.AI()
-	if aiClient == nil {
-		return nil, fmt.Errorf("set an OpenRouter API key first")
-	}
-	return aiClient.ListModels(a.ctx)
+	return a.settings.ListModels(a.ctx)
 }
 
 // ---------------------------------------------------------------------------
