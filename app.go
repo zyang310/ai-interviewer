@@ -12,13 +12,12 @@ import (
 
 	"ai-interviewer/internal/ai"
 	"ai-interviewer/internal/capture"
-	"ai-interviewer/internal/googletts"
 	"ai-interviewer/internal/hotkey"
 	"ai-interviewer/internal/models"
 	"ai-interviewer/internal/problems"
+	"ai-interviewer/internal/service"
 	"ai-interviewer/internal/store"
 	"ai-interviewer/internal/updater"
-	"ai-interviewer/internal/voice"
 
 	"github.com/google/uuid"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -34,14 +33,12 @@ type activeSession struct {
 // App is the main application struct. Its exported methods are bound to the
 // frontend via Wails and callable as async TypeScript functions.
 type App struct {
-	ctx         context.Context
-	db          *store.DB
-	capturer    *capture.Capturer
-	aiClient    *ai.Client
-	voiceClient *voice.Client     // ElevenLabs: STT + TTS
-	googleTTS   *googletts.Client // Google Cloud TTS
-	hotkey      *hotkey.Listener  // global push-to-talk keyboard hook
-	active      *activeSession
+	ctx       context.Context
+	db        *store.DB
+	capturer  *capture.Capturer
+	providers *service.Providers // live API clients (OpenRouter + voice), swapped on key changes
+	hotkey    *hotkey.Listener   // global push-to-talk keyboard hook
+	active    *activeSession
 }
 
 // NewApp initialises the application: opens the database, creates the screen
@@ -53,30 +50,19 @@ func NewApp() (*App, error) {
 	}
 
 	app := &App{
-		db:       db,
-		capturer: capture.NewCapturer(),
-		hotkey:   hotkey.New(),
+		db:        db,
+		capturer:  capture.NewCapturer(),
+		hotkey:    hotkey.New(),
+		providers: service.NewProviders(),
 	}
 
-	// Restore the AI client from the persisted OpenRouter key (if any).
-	if key, err := db.GetAPIKey("openrouter"); err != nil {
-		log.Printf("warning: could not read OpenRouter key: %v", err)
-	} else if key != "" {
-		app.aiClient = ai.NewClient(key)
-	}
-
-	// Restore the voice client from the persisted ElevenLabs key (if any).
-	if key, err := db.GetAPIKey("elevenlabs"); err != nil {
-		log.Printf("warning: could not read ElevenLabs key: %v", err)
-	} else if key != "" {
-		app.voiceClient = voice.NewClient(key)
-	}
-
-	// Restore the Google TTS client from the persisted Google key (if any).
-	if key, err := db.GetAPIKey("google"); err != nil {
-		log.Printf("warning: could not read Google key: %v", err)
-	} else if key != "" {
-		app.googleTTS = googletts.NewClient(key)
+	// Restore each provider's client from its persisted API key (if any).
+	for _, provider := range []string{"openrouter", "elevenlabs", "google"} {
+		if key, err := db.GetAPIKey(provider); err != nil {
+			log.Printf("warning: could not read %s key: %v", provider, err)
+		} else if key != "" {
+			app.providers.SetKey(provider, key)
+		}
 	}
 
 	// Restore the saved capture region so on-demand captures honour it too.
@@ -136,14 +122,7 @@ func (a *App) SetAPIKey(provider, key string) error {
 	if err := a.db.SetAPIKey(provider, key); err != nil {
 		return err
 	}
-	switch provider {
-	case "openrouter":
-		a.aiClient = ai.NewClient(key)
-	case "elevenlabs":
-		a.voiceClient = voice.NewClient(key)
-	case "google":
-		a.googleTTS = googletts.NewClient(key)
-	}
+	a.providers.SetKey(provider, key)
 	return nil
 }
 
@@ -154,14 +133,7 @@ func (a *App) DeleteAPIKey(provider string) error {
 	if err := a.db.DeleteAPIKey(provider); err != nil {
 		return err
 	}
-	switch provider {
-	case "openrouter":
-		a.aiClient = nil
-	case "elevenlabs":
-		a.voiceClient = nil
-	case "google":
-		a.googleTTS = nil
-	}
+	a.providers.SetKey(provider, "") // empty key deactivates the slot
 	return nil
 }
 
@@ -239,9 +211,10 @@ func (a *App) EndSession(sessionID string) error {
 	a.active = nil
 
 	// Label the session and snapshot its final code in the background so ending
-	// stays instant.
-	if a.aiClient != nil {
-		go a.extractSessionMeta(sessionID, model, finalShot)
+	// stays instant. Snapshot the client here so the goroutine shares no mutable
+	// state — a key deleted mid-extraction just finishes on the old client.
+	if aiClient := a.providers.AI(); aiClient != nil {
+		go a.extractSessionMeta(aiClient, sessionID, model, finalShot)
 	}
 	return nil
 }
@@ -252,7 +225,7 @@ func (a *App) EndSession(sessionID string) error {
 // Best-effort: every failure is logged and swallowed so it never affects the
 // interview. Runs in its own goroutine with a fresh context (the request context
 // may already be done).
-func (a *App) extractSessionMeta(sessionID, model, screenshot string) {
+func (a *App) extractSessionMeta(aiClient service.AI, sessionID, model, screenshot string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -275,7 +248,7 @@ func (a *App) extractSessionMeta(sessionID, model, screenshot string) {
 		return // too short to label meaningfully
 	}
 
-	meta, err := a.aiClient.ExtractSessionMeta(ctx, model, buildTranscript(msgs), screenshot)
+	meta, err := aiClient.ExtractSessionMeta(ctx, model, buildTranscript(msgs), screenshot)
 	if err != nil {
 		log.Printf("history: extract session meta: %v", err)
 		return
@@ -327,7 +300,8 @@ func (a *App) SendMessage(text string) (string, error) {
 	if a.active == nil {
 		return "", fmt.Errorf("no active session — start an interview first")
 	}
-	if a.aiClient == nil {
+	aiClient := a.providers.AI()
+	if aiClient == nil {
 		return "", fmt.Errorf("OpenRouter API key not configured — add it in Settings")
 	}
 
@@ -360,7 +334,7 @@ func (a *App) SendMessage(text string) (string, error) {
 	}
 
 	// 3. Call OpenRouter.
-	response, err := a.aiClient.Complete(a.ctx, a.active.session.Model, a.active.history)
+	response, err := aiClient.Complete(a.ctx, a.active.session.Model, a.active.history)
 	if err != nil {
 		return "", fmt.Errorf("AI request failed: %w", err)
 	}
@@ -605,7 +579,8 @@ func (a *App) DeleteSession(id string) error {
 // transcript plus the captured final code, using the session's own model, then
 // persisted. Requires a configured AI client.
 func (a *App) GetDebrief(id string) (models.Debrief, error) {
-	if a.aiClient == nil {
+	aiClient := a.providers.AI()
+	if aiClient == nil {
 		return models.Debrief{}, fmt.Errorf("debrief: no AI provider configured — add an OpenRouter key in Settings")
 	}
 
@@ -639,7 +614,7 @@ func (a *App) GetDebrief(id string) (models.Debrief, error) {
 	// 3. Generate (one text call), with a fresh bounded context.
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	debrief, err := a.aiClient.GenerateDebrief(ctx, sess.Model, buildTranscript(msgs), finalCode)
+	debrief, err := aiClient.GenerateDebrief(ctx, sess.Model, buildTranscript(msgs), finalCode)
 	if err != nil {
 		return models.Debrief{}, err
 	}
@@ -694,10 +669,11 @@ func (a *App) OpenInputMonitoringSettings() {
 // picker. Saving a choice needs no binding here — the picker writes the selected
 // id to Preferences.Model through UpdatePreferences.
 func (a *App) ListAvailableModels() ([]models.Model, error) {
-	if a.aiClient == nil {
+	aiClient := a.providers.AI()
+	if aiClient == nil {
 		return nil, fmt.Errorf("set an OpenRouter API key first")
 	}
-	return a.aiClient.ListModels(a.ctx)
+	return aiClient.ListModels(a.ctx)
 }
 
 // ---------------------------------------------------------------------------
@@ -766,11 +742,11 @@ type sttProvider interface {
 // yields the optimal combo: Scribe STT + Google TTS. STT has no user toggle —
 // the Settings toggle is voice-only.
 func (a *App) activeSTT() (sttProvider, error) {
-	if a.voiceClient != nil {
-		return a.voiceClient, nil
+	if eleven := a.providers.ElevenLabs(); eleven != nil {
+		return eleven, nil
 	}
-	if a.googleTTS != nil {
-		return a.googleTTS, nil
+	if google := a.providers.Google(); google != nil {
+		return google, nil
 	}
 	return nil, fmt.Errorf("no voice provider configured — add a Google Cloud or ElevenLabs key in Settings")
 }
@@ -791,22 +767,25 @@ func (a *App) activeTTS() (ttsProvider, string, error) {
 		googleVoice = defaultGoogleVoiceID
 	}
 
+	eleven := a.providers.ElevenLabs()
+	google := a.providers.Google()
+
 	if prefs.TTSProvider == "elevenlabs" {
-		if a.voiceClient != nil {
-			return a.voiceClient, elevenVoice, nil
+		if eleven != nil {
+			return eleven, elevenVoice, nil
 		}
-		if a.googleTTS != nil {
-			return a.googleTTS, googleVoice, nil // fall back so audio still works
+		if google != nil {
+			return google, googleVoice, nil // fall back so audio still works
 		}
 		return nil, "", fmt.Errorf("ElevenLabs API key not configured — add it in Settings")
 	}
 
 	// Default provider: Google.
-	if a.googleTTS != nil {
-		return a.googleTTS, googleVoice, nil
+	if google != nil {
+		return google, googleVoice, nil
 	}
-	if a.voiceClient != nil {
-		return a.voiceClient, elevenVoice, nil // fall back so audio still works
+	if eleven != nil {
+		return eleven, elevenVoice, nil // fall back so audio still works
 	}
 	return nil, "", fmt.Errorf("Google API key not configured — add it in Settings")
 }
