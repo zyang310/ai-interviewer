@@ -25,7 +25,7 @@ func main() {
 	}
 
 	err = wails.Run(&options.App{
-		Title:     "AI Interviewer",
+		Title:     "Mogi",
 		Width:     1024,
 		Height:    768,
 		Frameless: true,

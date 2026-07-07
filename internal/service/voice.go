@@ -7,8 +7,8 @@ import (
 	"regexp"
 	"strings"
 
-	"ai-interviewer/internal/ai"
-	"ai-interviewer/internal/models"
+	"mogi/internal/ai"
+	"mogi/internal/models"
 )
 
 // defaultVoiceID is ElevenLabs' long-stable "Rachel" premade voice, used as a

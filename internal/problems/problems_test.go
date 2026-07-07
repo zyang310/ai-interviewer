@@ -5,7 +5,7 @@ import (
 	"math/rand"
 	"testing"
 
-	"ai-interviewer/internal/models"
+	"mogi/internal/models"
 )
 
 // TestEmbedData verifies the committed CSV parses into the shape the app expects:

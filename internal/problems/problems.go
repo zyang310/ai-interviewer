@@ -20,7 +20,7 @@ import (
 	"sync"
 	"time"
 
-	"ai-interviewer/internal/models"
+	"mogi/internal/models"
 )
 
 //go:generate go run ./gen

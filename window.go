@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	"ai-interviewer/internal/capture"
+	"mogi/internal/capture"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )

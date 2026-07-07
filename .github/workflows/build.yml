@@ -81,11 +81,11 @@ jobs:
         run: |
           cd build/bin
           app="$(ls -d *.app | head -1)"
-          ditto -c -k --keepParent "$app" "AI-Interviewer-dev-${GITHUB_SHA::7}.zip"
+          ditto -c -k --keepParent "$app" "Mogi-dev-${GITHUB_SHA::7}.zip"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: AI-Interviewer-macos-universal
-          path: build/bin/AI-Interviewer-dev-*.zip
+          name: Mogi-macos-universal
+          path: build/bin/Mogi-dev-*.zip
           if-no-files-found: error

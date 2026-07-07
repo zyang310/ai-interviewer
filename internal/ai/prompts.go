@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"ai-interviewer/internal/models"
+	"mogi/internal/models"
 )
 
 // basePrompt is the shared interviewer persona: how to run a realistic screen,

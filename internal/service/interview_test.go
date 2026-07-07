@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"ai-interviewer/internal/ai"
-	"ai-interviewer/internal/models"
+	"mogi/internal/ai"
+	"mogi/internal/models"
 )
 
 // interviewWith builds an Interview service over fakes, seeding the registry's

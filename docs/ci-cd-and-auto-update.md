@@ -1,6 +1,6 @@
 # CI/CD & Auto-Update — A Guide
 
-> Read this top-to-bottom to understand how AI Interviewer is built, released, and
+> Read this top-to-bottom to understand how Mogi is built, released, and
 > updated. It explains the concepts first, then how this repo wires them together,
 > then the trade-offs behind each decision. For the bound-method reference and data
 > flow, see [architecture.md](architecture.md); for the original design notes, see
@@ -77,7 +77,7 @@ We ship **unsigned**. So when a user downloads our `.zip`, unzips it, and double
 Gatekeeper sees no signature + a quarantine flag and **refuses to open it** ("app is
 damaged / from an unidentified developer"). The fix is a one-time user action:
 right-click → **Open** (which adds a permanent exception), or strip the quarantine flag
-with `xattr -cr "/Applications/ai-interviewer.app"`. This is normal for indie/unsigned
+with `xattr -cr "/Applications/Mogi.app"`. This is normal for indie/unsigned
 macOS apps — but it's the reason updates here can't be silent (more below).
 
 ### The auto-update spectrum (and why Wails v2 has none built in)
@@ -119,7 +119,7 @@ Developer account ever enters the picture.
         ├─ npm ci && npm run build → dist        ├─ stamp wails.json productVersion
         ├─ go build ./...                        ├─ wails build darwin/universal
         ├─ go test ./...                         │     -ldflags main.version=vX.Y.Z
-        ├─ gofmt -l .                            ├─ ditto  → AI-Interviewer-vX.Y.Z.zip
+        ├─ gofmt -l .                            ├─ ditto  → Mogi-vX.Y.Z.zip
         ├─ wails build darwin/universal -s       └─ softprops/action-gh-release
         │     -ldflags main.version=dev-<sha>            │
         └─ upload-artifact (repo-only, expires)          ▼
@@ -183,7 +183,7 @@ the result.
      │                 │
      │                 ├─ version is "dev"/invalid semver?  ──► return {available:false}   (no network call)
      │                 │
-     │                 ├─ GET api.github.com/repos/zyang310/ai-interviewer/releases/latest
+     │                 ├─ GET api.github.com/repos/zyang310/mogi/releases/latest
      │                 │      (404 = no releases yet ──► {available:false}, not an error)
      │                 │
      │                 └─ semver.Compare(latestTag, version) > 0  ──► {available:true, …urls}
@@ -212,7 +212,7 @@ Three details worth calling out, because they're the kind of thing an interviewe
 
 What "unsigned + notify-and-download" actually means for a user:
 
-1. **First install:** download `.zip` → unzip → drag `ai-interviewer.app` to
+1. **First install:** download `.zip` → unzip → drag `Mogi.app` to
    `/Applications` → right-click **Open** once (or `xattr -cr`). After that it launches
    normally forever.
 2. **An update ships:** on next launch the app shows *"A new version is available."* →
@@ -270,14 +270,14 @@ Pick the version with semver: bug-fix → bump PATCH, new feature → bump MINOR
 bump MAJOR. The tag is the version; nothing else needs editing.
 
 **Check a `main` build compiled** — open the repo's **Actions** tab, find the latest
-*Build* run; its artifact (`AI-Interviewer-macos-universal`) is the test build.
+*Build* run; its artifact (`Mogi-macos-universal`) is the test build.
 
 **Test the update flow locally** — build the app pretending to be an old version, then
 launch it; with a real release published, the banner should appear:
 
 ```bash
 wails build -ldflags "-X main.version=v0.0.1"
-open build/bin/ai-interviewer.app
+open build/bin/Mogi.app
 ```
 
 **Where the version shows** — Settings → **About** (calls `GetAppVersion`), and macOS

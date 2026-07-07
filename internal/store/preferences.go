@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strconv"
 
-	"ai-interviewer/internal/models"
+	"mogi/internal/models"
 )
 
 const (

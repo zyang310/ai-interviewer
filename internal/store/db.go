@@ -150,11 +150,22 @@ func (db *DB) addColumnIfMissing(table, column, ddl string) error {
 	return nil
 }
 
-// appDataDir returns ~/Library/Application Support/ai-interviewer on macOS.
+// appDataDir returns ~/Library/Application Support/mogi on macOS. The app was
+// previously named "ai-interviewer"; a data dir from that era is renamed once
+// so existing sessions and API keys survive the rebrand.
 func appDataDir() (string, error) {
 	cfg, err := os.UserConfigDir()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(cfg, "ai-interviewer"), nil
+	dir := filepath.Join(cfg, "mogi")
+	legacy := filepath.Join(cfg, "ai-interviewer")
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		if _, err := os.Stat(legacy); err == nil {
+			if err := os.Rename(legacy, dir); err != nil {
+				return "", fmt.Errorf("store: migrate legacy data dir: %w", err)
+			}
+		}
+	}
+	return dir, nil
 }

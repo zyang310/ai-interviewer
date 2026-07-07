@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"ai-interviewer/internal/models"
+	"mogi/internal/models"
 )
 
 // TestBuildSystemPromptUnchanged confirms the default screen-driven prompt is

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"ai-interviewer/internal/models"
+	"mogi/internal/models"
 )
 
 // historyWith builds a History service over fakes; activeID defaults to idle.

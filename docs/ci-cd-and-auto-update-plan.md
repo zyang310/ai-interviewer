@@ -13,7 +13,7 @@ Goals:
 
 Decisions (from the user): **macOS only**, **notify + 1-click download** (not silent), **unsigned** (no Apple Developer account).
 
-Repo: `github.com/zyang310/ai-interviewer` (confirmed via `git remote -v`). Note: `internal/ai/client.go` has a pre-existing typo'd referer URL using `zhihangyang`; the updater must use the correct owner **`zyang310`**.
+Repo: `github.com/zyang310/mogi` (confirmed via `git remote -v`). Note: `internal/ai/client.go` has a pre-existing typo'd referer URL using `zhihangyang`; the updater must use the correct owner **`zyang310`**.
 
 ### The unsigned reality (what "auto-update" can and can't be here)
 
@@ -21,7 +21,7 @@ Wails v2 has **no built-in self-updater**, and seamless in-place replacement on 
 
 - App checks GitHub Releases on launch → if a newer version exists, shows an **"Update available"** banner.
 - Clicking **Download** opens the new release's `.zip` from GitHub.
-- User unzips, drags `AI Interviewer.app` to `/Applications`, and clears Gatekeeper **once** (`xattr -cr` / right-click → Open). The release notes spell this out.
+- User unzips, drags `Mogi.app` to `/Applications`, and clears Gatekeeper **once** (`xattr -cr` / right-click → Open). The release notes spell this out.
 
 This is the ceiling without signing — the same flow most unsigned indie macOS apps use. If an Apple Developer account is added later, this design upgrades cleanly to Sparkle silent updates (see end).
 
@@ -56,7 +56,7 @@ This is the ceiling without signing — the same flow most unsigned indie macOS 
 
 3. **`internal/updater/updater.go`** (new package, one concern):
    - `func Check(ctx context.Context, currentVersion string) (models.UpdateInfo, error)`.
-   - GET `https://api.github.com/repos/zyang310/ai-interviewer/releases/latest` with headers `Accept: application/vnd.github+json`, `User-Agent: ai-interviewer`, `X-GitHub-Api-Version: 2022-11-28`.
+   - GET `https://api.github.com/repos/zyang310/mogi/releases/latest` with headers `Accept: application/vnd.github+json`, `User-Agent: mogi`, `X-GitHub-Api-Version: 2022-11-28`.
    - **Reuse the existing HTTP pattern** from `internal/ai/client.go` (`http.Client{Timeout: 60s}`, `http.NewRequestWithContext`, `defer resp.Body.Close()`, `io.ReadAll`, status check, JSON unmarshal into an anonymous struct).
    - Parse `tag_name`, `html_url`, `body`, and `assets[].browser_download_url` (pick the asset whose name ends in `.zip`).
    - Compare with `golang.org/x/mod/semver` (`semver.IsValid` + `semver.Compare`). If `currentVersion == "dev"` or invalid → `Available:false` (never nag dev builds). `404` (no release yet) → `Available:false`, no error.
@@ -98,7 +98,7 @@ This is the ceiling without signing — the same flow most unsigned indie macOS 
 - `go install github.com/wailsapp/wails/v2/cmd/wails@v2.12.0` (pinned to the project's Wails version); add `$(go env GOPATH)/bin` to `PATH`.
 - **Checks:** `go build ./...`, `go test ./...`, `gofmt -l .`, and `cd frontend && npm ci && npx tsc --noEmit`.
 - **Build:** `wails build -platform darwin/universal -ldflags "-X main.version=dev-${{ github.sha }}"` (universal = Intel + Apple Silicon from one binary).
-- **Artifact:** `ditto -c -k --keepParent "build/bin/AI Interviewer.app" build.zip` → `actions/upload-artifact@v4` (downloadable from the run for testing; satisfies "builds every time I change main").
+- **Artifact:** `ditto -c -k --keepParent "build/bin/Mogi.app" build.zip` → `actions/upload-artifact@v4` (downloadable from the run for testing; satisfies "builds every time I change main").
 
 **Verify:** push a branch / open a PR and confirm the run goes green and produces the artifact.
 
@@ -109,10 +109,10 @@ This is the ceiling without signing — the same flow most unsigned indie macOS 
 1. **`.github/workflows/release.yml`** — triggers on `push` tags `v*`. `permissions: contents: write`. Same macOS build setup as Phase C, then:
    - `VERSION=${GITHUB_REF_NAME}` (e.g. `v0.2.0`); patch `wails.json` `info.productVersion` to the tag (strip leading `v`) so the macOS plist version matches.
    - `wails build -platform darwin/universal -ldflags "-X main.version=${VERSION}"`.
-   - `ditto -c -k --keepParent "build/bin/AI Interviewer.app" "AI-Interviewer-${VERSION}-macos-universal.zip"`.
-   - `softprops/action-gh-release@v2` with `files:` the zip, `generate_release_notes: true`, and a `body` that includes the **first-launch Gatekeeper steps** (`xattr -cr "/Applications/AI Interviewer.app"` or right-click → Open).
+   - `ditto -c -k --keepParent "build/bin/Mogi.app" "Mogi-${VERSION}-macos-universal.zip"`.
+   - `softprops/action-gh-release@v2` with `files:` the zip, `generate_release_notes: true`, and a `body` that includes the **first-launch Gatekeeper steps** (`xattr -cr "/Applications/Mogi.app"` or right-click → Open).
 
-2. **`wails.json`** — add an `info` block (`companyName`, `productName: "AI Interviewer"`, `productVersion: "0.1.0"`, `copyright`) so local/plist versions are sane; CI overrides `productVersion` per tag.
+2. **`wails.json`** — add an `info` block (`companyName`, `productName: "Mogi"`, `productVersion: "0.1.0"`, `copyright`) so local/plist versions are sane; CI overrides `productVersion` per tag.
 
 3. **Docs:**
    - `README.md` — add a **Download & Install** section (link to Releases, the de-quarantine one-liner, universal-binary note).

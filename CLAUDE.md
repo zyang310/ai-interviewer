@@ -1,10 +1,10 @@
-# CLAUDE.md — AI Mock Interviewer
+# CLAUDE.md — Mogi (AI mock interviewer)
 
 Rules and a map of the codebase. Roadmap/status → [docs/roadmap.md](docs/roadmap.md). Deep reference (data flow, full bindings, prompt spec, API contracts) → [docs/architecture.md](docs/architecture.md).
 
 ## Purpose (why this exists)
 
-A desktop app that runs a **live AI mock coding interview**. The user codes in their own IDE or a browser tab (VS Code, IntelliJ, terminal, LeetCode, NeetCode); the app screenshots their screen and an AI interviewer reads the problem *and* the code from the screenshot, then nudges Socratically — never handing over the answer.
+**Mogi** (模擬, Japanese for "mock" — as in 模擬面接, *mock interview*) is a desktop app that runs a **live AI mock coding interview**. The user codes in their own IDE or a browser tab (VS Code, IntelliJ, terminal, LeetCode, NeetCode); the app screenshots their screen and an AI interviewer reads the problem *and* the code from the screenshot, then nudges Socratically — never handing over the answer.
 
 **Screen-driven:** there is no problem bank and no written problem statement. The screenshot is the problem.
 

@@ -1,4 +1,4 @@
-module ai-interviewer
+module mogi
 
 go 1.25.0
 

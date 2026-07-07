@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"ai-interviewer/internal/models"
+	"mogi/internal/models"
 )
 
 // parseDBTime parses a timestamp written by the SQLite driver, which may be in

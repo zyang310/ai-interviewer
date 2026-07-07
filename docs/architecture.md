@@ -95,7 +95,7 @@ The app is **screen-driven** — the problem is never sent as text; it lives in 
 All local state lives in one SQLite file, created on first launch (`store.Open`, [../internal/store/db.go](../internal/store/db.go)):
 
 ```
-~/Library/Application Support/ai-interviewer/data.db   (+ -wal / -shm sidecars; WAL mode)
+~/Library/Application Support/mogi/data.db   (+ -wal / -shm sidecars; WAL mode)
 ```
 
 `migrate()` creates three tables idempotently (columns added in later versions are backfilled via `addColumnIfMissing`):

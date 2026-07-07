@@ -32,7 +32,7 @@ go.work.sum
 # .vscode/
 
 # Wails
-ai-interviewer
+mogi
 build/bin
 frontend/dist
 frontend/node_modules

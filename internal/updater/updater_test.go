@@ -37,7 +37,7 @@ func TestIsNewer(t *testing.T) {
 func TestPickZipAsset(t *testing.T) {
 	rel := ghRelease{Assets: []ghAsset{
 		{Name: "checksums.txt", BrowserDownloadURL: "https://example/checksums.txt"},
-		{Name: "AI-Interviewer-v1.0.0-macos-universal.zip", BrowserDownloadURL: "https://example/app.zip"},
+		{Name: "Mogi-v1.0.0-macos-universal.zip", BrowserDownloadURL: "https://example/app.zip"},
 	}}
 	if got := pickZipAsset(rel); got != "https://example/app.zip" {
 		t.Errorf("pickZipAsset = %q, want the .zip url", got)

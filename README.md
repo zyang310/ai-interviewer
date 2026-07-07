@@ -1,14 +1,14 @@
-# AI Interviewer
+# Mogi
 
-A desktop app that acts as a live AI-powered mock coding interview coach. You code in your own IDE while the app captures your screen and provides real-time Socratic interviewer feedback.
+**Mogi** (模擬, Japanese for "mock" — as in 模擬面接, *mock interview*) is a desktop app that acts as a live AI-powered mock coding interview coach. You code in your own IDE while the app captures your screen and provides real-time Socratic interviewer feedback.
 
 ## Download & Install (macOS)
 
-Grab the latest build from the [**Releases**](https://github.com/zyang310/ai-interviewer/releases) page — download the `.zip`, unzip it, and drag **ai-interviewer.app** into your **Applications** folder. It's a **universal binary** that runs natively on both Apple Silicon and Intel Macs.
+Grab the latest build from the [**Releases**](https://github.com/zyang310/mogi/releases) page — download the `.zip`, unzip it, and drag **Mogi.app** into your **Applications** folder. It's a **universal binary** that runs natively on both Apple Silicon and Intel Macs.
 
 > **First launch (one time):** the app is **unsigned**, so macOS Gatekeeper blocks it the first time. Either **right-click the app → Open → Open**, or run:
 > ```bash
-> xattr -cr "/Applications/ai-interviewer.app"
+> xattr -cr "/Applications/Mogi.app"
 > ```
 > After doing this once, it opens normally — this is expected for unsigned apps.
 
@@ -32,7 +32,7 @@ One gateway to many models (Claude, GPT, Gemini, …); the app uses it for the v
 
 1. Sign in at **https://openrouter.ai** (Google/GitHub login works).
 2. Add a few dollars of credit under **Settings → Credits** — interviewer replies are short, so it lasts a long time.
-3. Go to **https://openrouter.ai/keys** → **Create Key** → name it (e.g. "AI Interviewer") → **Create**.
+3. Go to **https://openrouter.ai/keys** → **Create Key** → name it (e.g. "Mogi") → **Create**.
 4. Copy the key (starts with `sk-or-...`) and paste it into the app.
 
 > The key is shown only once. Lose it? Just create another.
@@ -44,7 +44,7 @@ This is the fiddly one, so here's the full walkthrough. It's ~10× cheaper than 
 **1 · Create a project**
 
 - Open **https://console.cloud.google.com** and accept the terms if it's your first time.
-- Top bar → **project dropdown → New Project** → name it (e.g. "ai-interviewer") → **Create**. After a few seconds, select that project in the dropdown.
+- Top bar → **project dropdown → New Project** → name it (e.g. "mogi") → **Create**. After a few seconds, select that project in the dropdown.
 - **Billing:** Google requires a billing account (a card) even for the free tier under **Billing**. You won't be charged within the free monthly limits, but it must be set up. Prefer not to add a card? Use ElevenLabs instead.
 
 **2 · Enable the two voice APIs** _(this is the step people miss)_
@@ -122,16 +122,16 @@ cd frontend && npm run dev
 wails build
 ```
 
-Output: `build/bin/ai-interviewer.app` (macOS). Double-click to run, or:
+Output: `build/bin/Mogi.app` (macOS). Double-click to run, or:
 
 ```bash
-open build/bin/ai-interviewer.app
+open build/bin/Mogi.app
 ```
 
 ## Project Structure
 
 ```
-ai-interviewer/
+mogi/
 ├── main.go              # Entry point — Wails app config
 ├── app.go               # Go methods exposed to the frontend
 ├── internal/            # Backend packages (added in later phases)

@@ -8,9 +8,9 @@ import (
 	"sync"
 	"time"
 
-	"ai-interviewer/internal/ai"
-	"ai-interviewer/internal/models"
-	"ai-interviewer/internal/problems"
+	"mogi/internal/ai"
+	"mogi/internal/models"
+	"mogi/internal/problems"
 
 	"github.com/google/uuid"
 )

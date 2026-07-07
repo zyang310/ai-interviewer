@@ -3,9 +3,9 @@ package service
 import (
 	"context"
 
-	"ai-interviewer/internal/ai"
-	"ai-interviewer/internal/hotkey"
-	"ai-interviewer/internal/models"
+	"mogi/internal/ai"
+	"mogi/internal/hotkey"
+	"mogi/internal/models"
 )
 
 // Function-field fakes shared by every service test. Each test overrides only

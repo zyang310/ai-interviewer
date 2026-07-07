@@ -7,7 +7,7 @@ import (
 	"log"
 	"time"
 
-	"ai-interviewer/internal/models"
+	"mogi/internal/models"
 )
 
 // HistoryStore is the slice of the data layer the history service needs.

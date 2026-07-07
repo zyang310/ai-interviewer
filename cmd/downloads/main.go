@@ -26,7 +26,7 @@ import (
 
 const (
 	// releasesURL lists this repo's releases, newest first, 100 per page.
-	releasesURL = "https://api.github.com/repos/zyang310/ai-interviewer/releases?per_page=100"
+	releasesURL = "https://api.github.com/repos/zyang310/mogi/releases?per_page=100"
 	httpTimeout = 30 * time.Second
 )
 
@@ -83,7 +83,7 @@ func fetchReleases() ([]ghRelease, error) {
 			return nil, fmt.Errorf("build request: %w", err)
 		}
 		req.Header.Set("Accept", "application/vnd.github+json")
-		req.Header.Set("User-Agent", "ai-interviewer")
+		req.Header.Set("User-Agent", "mogi")
 		req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
 		if tok := os.Getenv("GITHUB_TOKEN"); tok != "" {
 			req.Header.Set("Authorization", "Bearer "+tok)

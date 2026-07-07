@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"ai-interviewer/internal/models"
+	"mogi/internal/models"
 
 	"golang.org/x/mod/semver"
 )
@@ -23,7 +23,7 @@ import (
 const (
 	// latestReleaseURL is GitHub's "latest published, non-prerelease release"
 	// endpoint for this repo. It returns 404 until the first release is cut.
-	latestReleaseURL = "https://api.github.com/repos/zyang310/ai-interviewer/releases/latest"
+	latestReleaseURL = "https://api.github.com/repos/zyang310/mogi/releases/latest"
 	// httpTimeout is short: the check runs on launch and must never block the UI.
 	httpTimeout = 15 * time.Second
 )
@@ -62,7 +62,7 @@ func Check(ctx context.Context, currentVersion string) (models.UpdateInfo, error
 	}
 	// GitHub requires a User-Agent; the other headers pin the API version.
 	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("User-Agent", "ai-interviewer")
+	req.Header.Set("User-Agent", "mogi")
 	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
 
 	client := &http.Client{Timeout: httpTimeout}

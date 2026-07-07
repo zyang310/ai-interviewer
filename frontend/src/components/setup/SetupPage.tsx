@@ -132,7 +132,7 @@ export default function SetupPage({ authStatus, onAuthChange, onContinue }: Prop
           </div>
           <h1 className="setup-title">Setup Environment</h1>
           <p className="setup-subtitle">
-            Welcome to AI Interviewer. Let's get your environment ready.
+            Welcome to Mogi. Let's get your environment ready.
           </p>
         </header>
 

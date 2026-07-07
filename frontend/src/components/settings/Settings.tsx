@@ -754,7 +754,7 @@ export default function Settings({ authStatus, onAuthChange, onPrefsChange }: Pr
                       <h3 className="settings-card-title">Enable Input Monitoring</h3>
                       <p className="settings-hint">
                         macOS needs permission for the global hotkey to fire while another app
-                        is focused. Open Input Monitoring, enable “AI Interviewer”, then relaunch
+                        is focused. Open Input Monitoring, enable “Mogi”, then relaunch
                         the app. (The mic button works without this.)
                       </p>
                       <button
@@ -835,7 +835,7 @@ export default function Settings({ authStatus, onAuthChange, onPrefsChange }: Pr
               <div className="settings-card">
                 <div className="settings-card-head">
                   <span className="material-symbols-outlined">info</span>
-                  <h3 className="settings-card-title">AI Interviewer</h3>
+                  <h3 className="settings-card-title">Mogi</h3>
                 </div>
                 <div className="settings-status">
                   Version: <span className="status-ok">{appVersion || "—"}</span>

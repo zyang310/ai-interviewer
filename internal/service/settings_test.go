@@ -7,8 +7,8 @@ import (
 	"sort"
 	"testing"
 
-	"ai-interviewer/internal/hotkey"
-	"ai-interviewer/internal/models"
+	"mogi/internal/hotkey"
+	"mogi/internal/models"
 )
 
 // settingsWith builds a Settings service over fakes, returning the fakes for

@@ -82,7 +82,7 @@ jobs:
         run: |
           cd build/bin
           app="$(ls -d *.app | head -1)"
-          zip="AI-Interviewer-${{ steps.ver.outputs.tag }}-macos-universal.zip"
+          zip="Mogi-${{ steps.ver.outputs.tag }}-macos-universal.zip"
           ditto -c -k --keepParent "$app" "$zip"
           echo "zip=build/bin/$zip" >> "$GITHUB_OUTPUT"
           echo "appname=$app" >> "$GITHUB_OUTPUT"
@@ -93,7 +93,7 @@ jobs:
           files: ${{ steps.pkg.outputs.zip }}
           generate_release_notes: true
           body: |
-            ## AI Interviewer ${{ steps.ver.outputs.tag }}
+            ## Mogi ${{ steps.ver.outputs.tag }}
 
             ${{ steps.notes.outputs.highlights }}
 

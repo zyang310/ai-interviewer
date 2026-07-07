@@ -10,10 +10,10 @@ import (
 	"context"
 	"sync"
 
-	"ai-interviewer/internal/ai"
-	"ai-interviewer/internal/googletts"
-	"ai-interviewer/internal/models"
-	"ai-interviewer/internal/voice"
+	"mogi/internal/ai"
+	"mogi/internal/googletts"
+	"mogi/internal/models"
+	"mogi/internal/voice"
 )
 
 // AI is the OpenRouter surface the services consume. *ai.Client satisfies it;

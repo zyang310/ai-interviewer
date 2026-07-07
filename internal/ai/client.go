@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"ai-interviewer/internal/models"
+	"mogi/internal/models"
 )
 
 const (
@@ -100,8 +100,8 @@ func (c *Client) Complete(ctx context.Context, model string, messages []ChatMess
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+c.apiKey)
-	req.Header.Set("HTTP-Referer", "https://github.com/zhihangyang/ai-interviewer")
-	req.Header.Set("X-Title", "AI Interviewer")
+	req.Header.Set("HTTP-Referer", "https://github.com/zyang310/mogi")
+	req.Header.Set("X-Title", "Mogi")
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -312,8 +312,8 @@ func (c *Client) ListModels(ctx context.Context) ([]models.Model, error) {
 		return nil, fmt.Errorf("ai: build models request: %w", err)
 	}
 	req.Header.Set("Authorization", "Bearer "+c.apiKey)
-	req.Header.Set("HTTP-Referer", "https://github.com/zhihangyang/ai-interviewer")
-	req.Header.Set("X-Title", "AI Interviewer")
+	req.Header.Set("HTTP-Referer", "https://github.com/zyang310/mogi")
+	req.Header.Set("X-Title", "Mogi")
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {

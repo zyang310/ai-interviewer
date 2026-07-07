@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"ai-interviewer/internal/hotkey"
-	"ai-interviewer/internal/models"
+	"mogi/internal/hotkey"
+	"mogi/internal/models"
 )
 
 // SettingsStore is the slice of the data layer the settings service needs.

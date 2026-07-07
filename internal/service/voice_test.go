@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"ai-interviewer/internal/models"
+	"mogi/internal/models"
 )
 
 // TestStripNonSpeech verifies that bracketed audio-event annotations are removed

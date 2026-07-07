@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"log"
 
-	"ai-interviewer/internal/capture"
-	"ai-interviewer/internal/hotkey"
-	"ai-interviewer/internal/models"
-	"ai-interviewer/internal/problems"
-	"ai-interviewer/internal/service"
-	"ai-interviewer/internal/store"
-	"ai-interviewer/internal/updater"
+	"mogi/internal/capture"
+	"mogi/internal/hotkey"
+	"mogi/internal/models"
+	"mogi/internal/problems"
+	"mogi/internal/service"
+	"mogi/internal/store"
+	"mogi/internal/updater"
 )
 
 // App is the Wails binding facade. Its exported methods are bound to the
