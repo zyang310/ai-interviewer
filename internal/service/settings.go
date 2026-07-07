@@ -16,6 +16,8 @@ type SettingsStore interface {
 	DeleteAPIKey(provider string) error
 	GetPreferences() (models.Preferences, error)
 	SavePreferences(p models.Preferences) error
+	ListStarredCompanies() ([]string, error)
+	SetCompanyStarred(slug string, starred bool) error
 }
 
 // HotkeyApplier is the control surface of the global push-to-talk hook.
@@ -79,6 +81,22 @@ func (s *Settings) AuthStatus() models.AuthStatus {
 // Preferences returns the user's settings.
 func (s *Settings) Preferences() (models.Preferences, error) {
 	return s.store.GetPreferences()
+}
+
+// StarredCompanies returns the slugs of the companies the user starred in the
+// Company Practice picker, alphabetically.
+func (s *Settings) StarredCompanies() ([]string, error) {
+	return s.store.ListStarredCompanies()
+}
+
+// SetCompanyStarred stars (true) or unstars (false) a company in the picker.
+// Idempotent. Slugs are kept even if a later dataset refresh drops the company —
+// the UI simply ignores slugs it can't resolve.
+func (s *Settings) SetCompanyStarred(slug string, starred bool) error {
+	if slug == "" {
+		return fmt.Errorf("settings: star company: empty slug")
+	}
+	return s.store.SetCompanyStarred(slug, starred)
 }
 
 // Update persists updated settings and propagates them into the running

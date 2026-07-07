@@ -74,6 +74,10 @@ export function ListSessions() {
   return window['go']['main']['App']['ListSessions']();
 }
 
+export function ListStarredCompanies() {
+  return window['go']['main']['App']['ListStarredCompanies']();
+}
+
 export function ListVoices() {
   return window['go']['main']['App']['ListVoices']();
 }
@@ -112,6 +116,10 @@ export function SetAPIKey(arg1, arg2) {
 
 export function SetCaptureRegion(arg1, arg2, arg3, arg4, arg5) {
   return window['go']['main']['App']['SetCaptureRegion'](arg1, arg2, arg3, arg4, arg5);
+}
+
+export function SetCompanyStarred(arg1, arg2) {
+  return window['go']['main']['App']['SetCompanyStarred'](arg1, arg2);
 }
 
 export function SetOverlayExpanded(arg1) {

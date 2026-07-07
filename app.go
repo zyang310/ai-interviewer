@@ -161,6 +161,18 @@ func (a *App) StartMockInterview(slug string) (models.CompanySessionStart, error
 	return a.interview.StartMock(a.ctx, slug)
 }
 
+// ListStarredCompanies returns the slugs the user starred in the company
+// picker, alphabetically.
+func (a *App) ListStarredCompanies() ([]string, error) {
+	return a.settings.StarredCompanies()
+}
+
+// SetCompanyStarred stars (true) or unstars (false) a company in the picker.
+// Idempotent.
+func (a *App) SetCompanyStarred(slug string, starred bool) error {
+	return a.settings.SetCompanyStarred(slug, starred)
+}
+
 // ---------------------------------------------------------------------------
 // Screen capture
 // ---------------------------------------------------------------------------

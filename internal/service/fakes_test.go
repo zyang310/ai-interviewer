@@ -16,23 +16,25 @@ import (
 // fakeStore satisfies all four per-service store interfaces (InterviewStore,
 // HistoryStore, VoiceStore, SettingsStore) so one fake serves every test.
 type fakeStore struct {
-	getPreferences      func() (models.Preferences, error)
-	savePreferences     func(p models.Preferences) error
-	getAPIKey           func(provider string) (string, error)
-	setAPIKey           func(provider, value string) error
-	deleteAPIKey        func(provider string) error
-	createSession       func(id, problemID, model string) (models.Session, error)
-	endSession          func(id string) error
-	addMessage          func(msg models.Message) error
-	getMessages         func(sessionID string) ([]models.Message, error)
-	getSession          func(id string) (models.Session, error)
-	updateSessionMeta   func(id, title, difficulty, finalCode string) error
-	setSessionCompany   func(id, company, mode string) error
-	listSessions        func() ([]models.SessionSummary, error)
-	deleteSession       func(id string) error
-	getSessionFinalCode func(id string) (string, error)
-	getSessionDebrief   func(id string) (string, error)
-	saveSessionDebrief  func(id, debrief string) error
+	getPreferences       func() (models.Preferences, error)
+	savePreferences      func(p models.Preferences) error
+	getAPIKey            func(provider string) (string, error)
+	setAPIKey            func(provider, value string) error
+	deleteAPIKey         func(provider string) error
+	createSession        func(id, problemID, model string) (models.Session, error)
+	endSession           func(id string) error
+	addMessage           func(msg models.Message) error
+	getMessages          func(sessionID string) ([]models.Message, error)
+	getSession           func(id string) (models.Session, error)
+	updateSessionMeta    func(id, title, difficulty, finalCode string) error
+	setSessionCompany    func(id, company, mode string) error
+	listSessions         func() ([]models.SessionSummary, error)
+	deleteSession        func(id string) error
+	getSessionFinalCode  func(id string) (string, error)
+	getSessionDebrief    func(id string) (string, error)
+	saveSessionDebrief   func(id, debrief string) error
+	listStarredCompanies func() ([]string, error)
+	setCompanyStarred    func(slug string, starred bool) error
 }
 
 func (f *fakeStore) GetPreferences() (models.Preferences, error) {
@@ -66,6 +68,20 @@ func (f *fakeStore) SetAPIKey(provider, value string) error {
 func (f *fakeStore) DeleteAPIKey(provider string) error {
 	if f.deleteAPIKey != nil {
 		return f.deleteAPIKey(provider)
+	}
+	return nil
+}
+
+func (f *fakeStore) ListStarredCompanies() ([]string, error) {
+	if f.listStarredCompanies != nil {
+		return f.listStarredCompanies()
+	}
+	return nil, nil
+}
+
+func (f *fakeStore) SetCompanyStarred(slug string, starred bool) error {
+	if f.setCompanyStarred != nil {
+		return f.setCompanyStarred(slug, starred)
 	}
 	return nil
 }

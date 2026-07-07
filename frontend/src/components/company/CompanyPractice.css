@@ -60,25 +60,41 @@
   gap: 8px;
 }
 
+/* The row shell is the <li>: it hosts the star toggle and the open button as
+   siblings (a star nested inside the old row <button> would be invalid HTML). */
 .company-row {
   width: 100%;
+  box-sizing: border-box;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 14px 16px;
+  gap: 4px;
+  padding: 0 0 0 8px; /* star gutter; the open button carries the rest */
   border: 1px solid var(--outline-variant);
   border-radius: 12px;
   background-color: var(--surface-container);
-  color: var(--on-surface);
-  cursor: pointer;
-  font-family: inherit;
-  text-align: left;
   transition: border-color 0.15s, background-color 0.15s;
 }
 
 .company-row:hover {
   border-color: var(--outline);
   background-color: var(--surface-container-high);
+}
+
+/* Open button: transparent chrome carrying the old row hit area. */
+.company-row-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px 14px 8px;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--on-surface);
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
 }
 
 .company-row-name {
@@ -97,6 +113,33 @@
 .company-row-arrow {
   font-size: 20px;
   color: var(--outline);
+}
+
+/* Star toggle: .company-icon-btn base; filled + tinted when starred (the
+   Material Symbols FILL variation axis is loaded in index.html). */
+.company-star-btn.starred,
+.company-star-btn.starred:hover:not(:disabled) {
+  color: var(--primary);
+}
+
+.company-star-btn.starred .material-symbols-outlined {
+  font-variation-settings: "FILL" 1;
+}
+
+/* ── Starred / All companies sections ──────────────────────────────────── */
+.company-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.company-section-label {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--on-surface-variant);
 }
 
 /* ── Back link ─────────────────────────────────────────────────────────── */

@@ -40,6 +40,8 @@ export function ListDisplays():Promise<Array<capture.DisplayInfo>>;
 
 export function ListSessions():Promise<Array<models.SessionSummary>>;
 
+export function ListStarredCompanies():Promise<Array<string>>;
+
 export function ListVoices():Promise<Array<models.Voice>>;
 
 export function MinimiseWindow():Promise<void>;
@@ -59,6 +61,8 @@ export function SendMessage(arg1:string):Promise<string>;
 export function SetAPIKey(arg1:string,arg2:string):Promise<void>;
 
 export function SetCaptureRegion(arg1:number,arg2:number,arg3:number,arg4:number,arg5:number):Promise<void>;
+
+export function SetCompanyStarred(arg1:string,arg2:boolean):Promise<void>;
 
 export function SetOverlayExpanded(arg1:boolean):Promise<void>;
 

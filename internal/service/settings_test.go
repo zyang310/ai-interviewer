@@ -3,6 +3,8 @@ package service
 import (
 	"context"
 	"errors"
+	"reflect"
+	"sort"
 	"testing"
 
 	"ai-interviewer/internal/hotkey"
@@ -143,5 +145,55 @@ func TestApplySavedRegion(t *testing.T) {
 	s2.ApplySavedRegion() // must not panic
 	if len(screen2.regions) != 0 {
 		t.Error("a failed read must not touch the capturer")
+	}
+}
+
+// TestCompanyStarring verifies the star/unstar round-trip and the empty-slug
+// guard.
+func TestCompanyStarring(t *testing.T) {
+	starred := map[string]bool{}
+	st := &fakeStore{
+		setCompanyStarred: func(slug string, on bool) error {
+			if on {
+				starred[slug] = true
+			} else {
+				delete(starred, slug)
+			}
+			return nil
+		},
+		listStarredCompanies: func() ([]string, error) {
+			slugs := make([]string, 0, len(starred))
+			for s := range starred {
+				slugs = append(slugs, s)
+			}
+			sort.Strings(slugs)
+			return slugs, nil
+		},
+	}
+	s, _, _, _ := settingsWith(st)
+
+	if err := s.SetCompanyStarred("meta", true); err != nil {
+		t.Fatalf("star meta: %v", err)
+	}
+	if err := s.SetCompanyStarred("google", true); err != nil {
+		t.Fatalf("star google: %v", err)
+	}
+	got, err := s.StarredCompanies()
+	if err != nil || !reflect.DeepEqual(got, []string{"google", "meta"}) {
+		t.Errorf("StarredCompanies() = %v, %v; want [google meta]", got, err)
+	}
+
+	if err := s.SetCompanyStarred("google", false); err != nil {
+		t.Fatalf("unstar google: %v", err)
+	}
+	if got, _ := s.StarredCompanies(); !reflect.DeepEqual(got, []string{"meta"}) {
+		t.Errorf("after unstar, StarredCompanies() = %v, want [meta]", got)
+	}
+
+	if err := s.SetCompanyStarred("", true); err == nil {
+		t.Error("SetCompanyStarred(\"\") should reject the empty slug")
+	}
+	if len(starred) != 1 {
+		t.Errorf("empty-slug call must not touch the store; starred = %v", starred)
 	}
 }

@@ -79,6 +79,10 @@ func (db *DB) migrate() error {
 			key   TEXT PRIMARY KEY,
 			value TEXT NOT NULL
 		);`,
+		`CREATE TABLE IF NOT EXISTS starred_companies (
+			slug       TEXT PRIMARY KEY,
+			starred_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+		);`,
 	}
 	for _, s := range stmts {
 		if _, err := db.conn.Exec(s); err != nil {

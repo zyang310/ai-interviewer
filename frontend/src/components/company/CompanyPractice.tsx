@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ListCompanies,
   ListCompanyProblems,
+  ListStarredCompanies,
+  SetCompanyStarred,
   StartCompanySession,
   StartMockInterview,
   OpenURL,
@@ -60,6 +62,11 @@ export default function CompanyPractice({
   const [companiesError, setCompaniesError] = useState("");
   const [companySearch, setCompanySearch] = useState("");
 
+  // Starred company slugs, loaded once on mount. Toggles are optimistic; a
+  // failed write reverts its own change and surfaces starError.
+  const [starred, setStarred] = useState<Set<string>>(new Set());
+  const [starError, setStarError] = useState("");
+
   const [selected, setSelected] = useState<models.CompanyInfo | null>(null);
   const [problems, setProblems] = useState<models.Problem[]>([]);
   const [loadingProblems, setLoadingProblems] = useState(false);
@@ -91,6 +98,16 @@ export default function CompanyPractice({
         if (!cancelled) setLoadingCompanies(false);
       }
     })();
+    // Starred slugs load in parallel; failure is non-fatal (rows just render
+    // unstarred) and must never block or error the company list itself.
+    (async () => {
+      try {
+        const slugs = await ListStarredCompanies();
+        if (!cancelled) setStarred(new Set(slugs ?? []));
+      } catch {
+        // A later toggle surfaces its own error via starError.
+      }
+    })();
     return () => {
       cancelled = true;
     };
@@ -119,6 +136,31 @@ export default function CompanyPractice({
   function openCompany(c: models.CompanyInfo) {
     loadProblems(c, "All");
     onRemember?.(c.slug, "All");
+  }
+
+  // toggleStar optimistically flips a company's star, persists it, and — if the
+  // write fails — reverts this toggle's own change (an inverse update, not a
+  // snapshot restore, so concurrent toggles on other rows aren't clobbered).
+  async function toggleStar(slug: string) {
+    const next = !starred.has(slug);
+    setStarError("");
+    setStarred((prev) => {
+      const s = new Set(prev);
+      if (next) s.add(slug);
+      else s.delete(slug);
+      return s;
+    });
+    try {
+      await SetCompanyStarred(slug, next);
+    } catch (e: any) {
+      setStarred((prev) => {
+        const s = new Set(prev);
+        if (next) s.delete(slug);
+        else s.add(slug);
+        return s;
+      });
+      setStarError(e?.message || String(e));
+    }
   }
 
   function changeDifficulty(d: Difficulty) {
@@ -155,6 +197,14 @@ export default function CompanyPractice({
       (c) => c.name.toLowerCase().includes(q) || c.slug.toLowerCase().includes(q)
     );
   }, [companies, companySearch]);
+
+  // Starred companies resolved against the loaded list — inherits its
+  // alphabetical order, and slugs that vanish after a dataset refresh simply
+  // never render (and can't be re-added, since toggles only exist on rows).
+  const starredCompanies = useMemo(
+    () => companies.filter((c) => starred.has(c.slug)),
+    [companies, starred]
+  );
 
   const visibleProblems = useMemo(() => {
     let list = problems;
@@ -303,6 +353,34 @@ export default function CompanyPractice({
     }
   }
 
+  // renderCompanyRow renders one picker row: a star toggle and the open button
+  // as sibling buttons inside the <li> (nesting them would be invalid HTML).
+  function renderCompanyRow(c: models.CompanyInfo) {
+    const isStarred = starred.has(c.slug);
+    return (
+      <li key={c.slug} className="company-row">
+        <button
+          className={`company-icon-btn company-star-btn${isStarred ? " starred" : ""}`}
+          aria-pressed={isStarred}
+          aria-label={`${isStarred ? "Unstar" : "Star"} ${c.name}`}
+          title={isStarred ? "Unstar" : "Star"}
+          onClick={() => toggleStar(c.slug)}
+        >
+          <span className="material-symbols-outlined">star</span>
+        </button>
+        <button className="company-row-main" onClick={() => openCompany(c)}>
+          <span className="company-row-name">{c.name}</span>
+          <span className="company-row-count">
+            {c.problemCount} {c.problemCount === 1 ? "problem" : "problems"}
+          </span>
+          <span className="material-symbols-outlined company-row-arrow">
+            chevron_right
+          </span>
+        </button>
+      </li>
+    );
+  }
+
   return (
     <div className="company-page">
       <div className="company-inner">
@@ -325,27 +403,32 @@ export default function CompanyPractice({
               disabled={loadingCompanies || !!companiesError}
             />
 
+            {starError && <p className="company-status error">{starError}</p>}
+
             {loadingCompanies ? (
               <p className="company-status">Loading companies…</p>
             ) : companiesError ? (
               <p className="company-status error">{companiesError}</p>
             ) : visibleCompanies.length === 0 ? (
               <p className="company-status">No companies match your search.</p>
+            ) : companySearch.trim() === "" && starredCompanies.length > 0 ? (
+              // Pinned Starred section, then the full list. Starred rows appear
+              // in both; the shared Set keeps the two copies in sync.
+              <>
+                <div className="company-section">
+                  <h2 className="company-section-label">Starred</h2>
+                  <ul className="company-list">
+                    {starredCompanies.map(renderCompanyRow)}
+                  </ul>
+                </div>
+                <div className="company-section">
+                  <h2 className="company-section-label">All companies</h2>
+                  <ul className="company-list">{companies.map(renderCompanyRow)}</ul>
+                </div>
+              </>
             ) : (
               <ul className="company-list">
-                {visibleCompanies.map((c) => (
-                  <li key={c.slug}>
-                    <button className="company-row" onClick={() => openCompany(c)}>
-                      <span className="company-row-name">{c.name}</span>
-                      <span className="company-row-count">
-                        {c.problemCount} {c.problemCount === 1 ? "problem" : "problems"}
-                      </span>
-                      <span className="material-symbols-outlined company-row-arrow">
-                        chevron_right
-                      </span>
-                    </button>
-                  </li>
-                ))}
+                {visibleCompanies.map(renderCompanyRow)}
               </ul>
             )}
           </>
