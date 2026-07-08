@@ -65,25 +65,6 @@ export function comboFromKeyboardEvent(e: KeyLike): string {
   return [...mods, main].join("+");
 }
 
-// Human-friendly names for tokens whose canonical form reads awkwardly.
-const TOKEN_LABELS: Record<string, string> = {
-  RightAlt: "Right Alt",
-  RightShift: "Right Shift",
-  RightMeta: "Right Cmd",
-  Meta: "Cmd",
-};
-
-// prettyHotkey renders a stored canonical key for display ("Ctrl+Space" ->
-// "Ctrl + Space", "RightAlt" -> "Right Alt"). The backend's
-// GetHotkeyStatus().label gives OS-specific symbols (⌃⌥); this is a lightweight
-// fallback that needs no round-trip.
-export function prettyHotkey(key: string): string {
-  return key
-    .split("+")
-    .map((t) => TOKEN_LABELS[t] ?? t)
-    .join(" + ");
-}
-
 // Keycap tokens for rendering a hotkey as individual keys. Right-hand modifiers
 // split into a "Right" cap + the glyph so the physical key reads clearly.
 // Mac-style glyphs — the global hotkey is used mainly on macOS (where it needs
