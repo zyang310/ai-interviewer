@@ -14,7 +14,7 @@ import {
   models,
   hotkey,
 } from "../../lib/wailsBridge";
-import { comboFromKeyboardEvent, bareModifierFromCode, prettyHotkey } from "../../lib/hotkey";
+import { comboFromKeyboardEvent, bareModifierFromCode, hotkeyKeycaps } from "../../lib/hotkey";
 import type { ThemePref } from "../../lib/theme";
 import ModelPicker from "./ModelPicker";
 import VoicePicker from "./VoicePicker";
@@ -429,6 +429,17 @@ export default function Settings({
     google: authStatus.googleConfigured,
   };
 
+  // Voice-hotkey footer state. Off → muted; on but (macOS) still awaiting Input
+  // Monitoring → warning with a shortcut to grant it; otherwise the hook is live.
+  const pttEnabled = !!prefs?.pushToTalkEnabled;
+  const needsInputMonitoring =
+    hkStatus?.goos === "darwin" && pttEnabled && !hkStatus.hookEnabled;
+  const hotkeyStatus: { tone: "off" | "active" | "warning"; text: string } = !pttEnabled
+    ? { tone: "off", text: "Voice hotkey is off" }
+    : needsInputMonitoring
+      ? { tone: "warning", text: "Needs Input Monitoring — enable Mogi, then relaunch" }
+      : { tone: "active", text: "Global hotkey is active" };
+
   return (
     <div className="settings-page">
       <div className="settings-layout">
@@ -527,18 +538,14 @@ export default function Settings({
           )}
 
           {section === "models" && (
+            // No card chrome here: "Model Architecture" is promoted to the section
+            // header and the picker sits directly on the pane, so there's no inner
+            // card boundary — the inset list well is the only container left.
             <>
               <header className="settings-head">
-                <h1>Models</h1>
-                <p>Choose the OpenRouter model the interviewer uses to read your screen.</p>
+                <h1>Model Architecture</h1>
               </header>
-              <div className="settings-card">
-                <div className="settings-card-head">
-                  <span className="material-symbols-outlined">neurology</span>
-                  <h3 className="settings-card-title">Model Architecture</h3>
-                </div>
-                <ModelPicker currentModelId={prefs?.model ?? ""} onSelect={saveModel} />
-              </div>
+              <ModelPicker currentModelId={prefs?.model ?? ""} onSelect={saveModel} />
             </>
           )}
 
@@ -725,95 +732,103 @@ export default function Settings({
                 <p>Press a hotkey to talk to the interviewer — even while your IDE is focused.</p>
               </header>
 
-              <div className="settings-card">
-                <div className="settings-card-head">
-                  <span className="material-symbols-outlined">keyboard</span>
-                  <h3 className="settings-card-title">Enable voice hotkey</h3>
+              {/* One consolidated card: enable toggle, key binding, footer status. */}
+              <div className="settings-card hotkey-card">
+                <div className="hotkey-head">
+                  <div className="hotkey-head-left">
+                    <span className="hotkey-icon">
+                      <span className="material-symbols-outlined">keyboard</span>
+                    </span>
+                    <div>
+                      <div className="hotkey-title">Enable voice hotkey</div>
+                      <div className="hotkey-subtitle">Toggle push-to-talk on or off</div>
+                    </div>
+                  </div>
+                  <div className="settings-segmented hotkey-toggle">
+                    <button
+                      type="button"
+                      className={`settings-segment${pttEnabled ? " active" : ""}`}
+                      onClick={() => savePTTEnabled(true)}
+                      disabled={saving || !prefs}
+                    >
+                      On
+                    </button>
+                    <button
+                      type="button"
+                      className={`settings-segment${prefs && !pttEnabled ? " active" : ""}`}
+                      onClick={() => savePTTEnabled(false)}
+                      disabled={saving || !prefs}
+                    >
+                      Off
+                    </button>
+                  </div>
                 </div>
-                <p className="settings-hint">
+
+                <p className="settings-hint hotkey-desc">
                   When on, press your hotkey to start recording and press it again to stop and
                   send — same as the mic button. The key isn't captured exclusively, so it also
                   reaches your editor; pick one your IDE ignores (a right-hand modifier or
                   function key) if that's a problem.
                 </p>
-                <div className="settings-segmented">
-                  <button
-                    type="button"
-                    className={`settings-segment${prefs?.pushToTalkEnabled ? " active" : ""}`}
-                    onClick={() => savePTTEnabled(true)}
-                    disabled={saving || !prefs}
-                  >
-                    On
-                  </button>
-                  <button
-                    type="button"
-                    className={`settings-segment${prefs && !prefs.pushToTalkEnabled ? " active" : ""}`}
-                    onClick={() => savePTTEnabled(false)}
-                    disabled={saving || !prefs}
-                  >
-                    Off
-                  </button>
-                </div>
-              </div>
 
-              <div className="settings-card">
-                <div className="settings-card-head">
-                  <span className="material-symbols-outlined">keyboard_command_key</span>
-                  <h3 className="settings-card-title">Hotkey</h3>
-                </div>
-                <p className="settings-hint">
-                  Click “Set hotkey”, then press the key you want — tap it once to start and
-                  again to stop. A single right-hand modifier like{" "}
-                  <strong>Right ⌥ Option</strong> (the default) works best — tapping it types
-                  nothing and avoids the macOS key beep that a combo like Ctrl+Space causes (the
-                  key still reaches your editor). Press Esc to cancel.
-                </p>
-                <div className="settings-field-row">
-                  <button
-                    type="button"
-                    className={`btn ${capturing ? "btn-primary" : "btn-ghost"} settings-hotkey-btn`}
-                    onClick={() => setCapturing((c) => !c)}
-                    disabled={saving || !prefs}
-                  >
-                    {capturing ? "Press a key…" : prettyHotkey(prefs?.pushToTalkKey || "RightAlt")}
-                  </button>
-                  <button
-                    type="button"
-                    className="settings-link-btn"
-                    onClick={() => commitHotkey("RightAlt")}
-                    disabled={saving || !prefs}
-                  >
-                    Reset to default
-                  </button>
-                </div>
-              </div>
+                <div className="hotkey-divider" />
 
-              {hkStatus?.goos === "darwin" && prefs?.pushToTalkEnabled && (
-                <div className="settings-card">
-                  {hkStatus.hookEnabled ? (
-                    <p className="settings-hint">
-                      <span className="status-ok">●</span> Global hotkey is active.
-                    </p>
-                  ) : (
-                    <>
-                      <h3 className="settings-card-title">Enable Input Monitoring</h3>
-                      <p className="settings-hint">
-                        macOS needs permission for the global hotkey to fire while another app
-                        is focused. Open Input Monitoring, enable “Mogi”, then relaunch
-                        the app. (The mic button works without this.)
-                      </p>
-                      <button
-                        type="button"
-                        className="btn btn-primary"
-                        onClick={() => OpenInputMonitoringSettings()}
-                        disabled={saving}
-                      >
-                        Open Input Monitoring settings
-                      </button>
-                    </>
+                <div className={`hotkey-bind${pttEnabled ? "" : " is-disabled"}`}>
+                  <div className="hotkey-bind-head">
+                    <span className="material-symbols-outlined">keyboard_command_key</span>
+                    <span className="hotkey-bind-label">Assigned key</span>
+                  </div>
+                  <p className="settings-hint">
+                    Click the key field, then press the key you want — tap once to start, again
+                    to stop. A single right-hand modifier like <strong>Right ⌥ Option</strong>{" "}
+                    works best: tapping it types nothing and avoids the macOS beep a combo like
+                    Ctrl+Space causes. Press Esc to cancel.
+                  </p>
+                  <div className="hotkey-bind-row">
+                    <button
+                      type="button"
+                      className={`hotkey-chip${capturing ? " is-capturing" : ""}`}
+                      onClick={() => setCapturing((c) => !c)}
+                      disabled={saving || !prefs}
+                    >
+                      {capturing ? (
+                        <span className="hotkey-chip-prompt">Press a key…</span>
+                      ) : (
+                        <span className="hotkey-keycaps">
+                          {hotkeyKeycaps(prefs?.pushToTalkKey || "RightAlt").map((cap, i) => (
+                            <span className="hotkey-keycap" key={i}>
+                              {cap}
+                            </span>
+                          ))}
+                        </span>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      className="settings-link-btn"
+                      onClick={() => commitHotkey("RightAlt")}
+                      disabled={saving || !prefs}
+                    >
+                      Reset to default
+                    </button>
+                  </div>
+                </div>
+
+                <div className={`hotkey-status hotkey-status--${hotkeyStatus.tone}`}>
+                  <span className="hotkey-status-dot" />
+                  <span className="hotkey-status-text">{hotkeyStatus.text}</span>
+                  {hotkeyStatus.tone === "warning" && (
+                    <button
+                      type="button"
+                      className="hotkey-status-action"
+                      onClick={() => OpenInputMonitoringSettings()}
+                      disabled={saving}
+                    >
+                      Open settings
+                    </button>
                   )}
                 </div>
-              )}
+              </div>
             </>
           )}
 

@@ -3,12 +3,6 @@
 
 
 
-ui changes:
-1. In settings add a line seperated tabs and content
-2. group similar settings together seperated by a tab, move either about or privacy to the bottom.
-3. shadow in hub is too strong, tone it down. 
-4. In setup page, round the corners
-5. make windows corners rounded.
-6. The speaking speed bar is non visible now
-
-redesign company tab and history, they are to repetitive currently and too mundane with the repeated boxes
+ui change:
+1. redesign company tab and history, they are to repetitive currently and too mundane with the repeated boxes
+2. redesign the voice picker setting page

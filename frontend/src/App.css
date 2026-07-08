@@ -20,7 +20,7 @@
   top: 0;
   left: 0;
   right: 0;
-  height: 84px;
+  height: 102px;
   z-index: 40;
   --wails-draggable: drag;
 }
@@ -43,7 +43,7 @@
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--level-2-border);
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 10px 30px -16px rgba(0, 0, 0, 0.35);
   /* Don't let the nav initiate a window drag */
   --wails-draggable: no-drag;
 }
@@ -125,7 +125,10 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
-  padding-top: 84px;
+  /* Content starts 24px below the floating nav — matching the 24px gap above it
+     (nav top:24 + height ~54 = bottom 78; +24 = 102). Symmetric breathing room
+     around the pill. Keep .app-drag-region's height in sync. */
+  padding-top: 102px;
   box-sizing: border-box;
 }
 

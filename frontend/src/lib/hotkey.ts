@@ -83,3 +83,23 @@ export function prettyHotkey(key: string): string {
     .map((t) => TOKEN_LABELS[t] ?? t)
     .join(" + ");
 }
+
+// Keycap tokens for rendering a hotkey as individual keys. Right-hand modifiers
+// split into a "Right" cap + the glyph so the physical key reads clearly.
+// Mac-style glyphs — the global hotkey is used mainly on macOS (where it needs
+// Input Monitoring), matching the Settings copy.
+const KEYCAP_TOKENS: Record<string, string[]> = {
+  Ctrl: ["⌃"],
+  Alt: ["⌥"],
+  Shift: ["⇧"],
+  Meta: ["⌘"],
+  RightAlt: ["Right", "⌥"],
+  RightShift: ["Right", "⇧"],
+  RightMeta: ["Right", "⌘"],
+};
+
+// hotkeyKeycaps splits a canonical hotkey string into keycap labels for display,
+// e.g. "RightAlt" -> ["Right", "⌥"], "Ctrl+Space" -> ["⌃", "Space"].
+export function hotkeyKeycaps(key: string): string[] {
+  return key.split("+").flatMap((t) => KEYCAP_TOKENS[t] ?? [t]);
+}

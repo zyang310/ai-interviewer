@@ -60,29 +60,40 @@ export default function ModelPicker({ currentModelId, onSelect }: Props) {
 
   return (
     <div className="model-picker">
-      <input
-        type="text"
-        className="settings-input model-picker-search"
-        placeholder="Search models…"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        disabled={loading || !!error}
-      />
+      <div className="model-picker-search-wrap">
+        <span className="material-symbols-outlined model-picker-search-icon">search</span>
+        <input
+          type="text"
+          className="model-picker-search"
+          placeholder="Search models…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          disabled={loading || !!error}
+        />
+      </div>
       <div className="model-picker-filters">
-        <label className="model-picker-toggle">
+        <label className={`model-picker-chip${visionOnly ? " is-checked" : ""}`}>
           <input
             type="checkbox"
+            className="model-picker-chip-input"
             checked={visionOnly}
             onChange={(e) => setVisionOnly(e.target.checked)}
           />
+          <span className="model-picker-chip-box">
+            {visionOnly && <span className="material-symbols-outlined">check</span>}
+          </span>
           Vision only
         </label>
-        <label className="model-picker-toggle">
+        <label className={`model-picker-chip${freeOnly ? " is-checked" : ""}`}>
           <input
             type="checkbox"
+            className="model-picker-chip-input"
             checked={freeOnly}
             onChange={(e) => setFreeOnly(e.target.checked)}
           />
+          <span className="model-picker-chip-box">
+            {freeOnly && <span className="material-symbols-outlined">check</span>}
+          </span>
           Free only
         </label>
       </div>
@@ -110,17 +121,32 @@ export default function ModelPicker({ currentModelId, onSelect }: Props) {
                   onClick={() => onSelect(m.id)}
                   title={m.description || m.id}
                 >
-                  <div className="model-picker-row-top">
-                    <span className="model-picker-name">{m.name || m.id}</span>
-                    <div className="model-picker-badges">
-                      {m.isFree && <span className="model-badge model-badge-free">🟢 Free</span>}
-                      {m.supportsVision && (
-                        <span className="model-badge model-badge-vision">👁 Vision</span>
-                      )}
+                  <div className="model-picker-row-main">
+                    <div className="model-picker-row-top">
+                      <span className="model-picker-name">{m.name || m.id}</span>
+                      <div className="model-picker-badges">
+                        {m.isFree && (
+                          <span className="model-badge model-badge-free">
+                            <span className="model-badge-dot" />
+                            Free
+                          </span>
+                        )}
+                        {m.supportsVision && (
+                          <span className="model-badge model-badge-vision">
+                            <span className="material-symbols-outlined">visibility</span>
+                            Vision
+                          </span>
+                        )}
+                      </div>
                     </div>
+                    <span className="model-picker-id">{m.id}</span>
+                    {sub && <div className="model-picker-sub">{sub}</div>}
                   </div>
-                  <span className="model-picker-id">{m.id}</span>
-                  {sub && <div className="model-picker-sub">{sub}</div>}
+                  {active && (
+                    <span className="material-symbols-outlined model-picker-check">
+                      check_circle
+                    </span>
+                  )}
                 </button>
               </li>
             );
