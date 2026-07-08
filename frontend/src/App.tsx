@@ -460,6 +460,11 @@ function App() {
   return (
     <div className="app">
       <WindowControls />
+      {/* Invisible titlebar drag strip: the frameless window can only be moved by
+          dragging an element marked --wails-draggable. This spans the top band
+          behind the floating nav so every screen is draggable; the nav and window
+          controls sit above it and opt out of dragging. */}
+      <div className="app-drag-region" />
       {/* Floating pill navigation */}
       <nav className="pill-nav">
         <button

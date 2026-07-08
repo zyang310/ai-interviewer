@@ -3,6 +3,9 @@
   position: fixed;
   inset: 0;
   background-color: var(--background);
+  /* Match the rounded window corners (see .app): the transparent frameless
+     window shows through outside this radius. */
+  border-radius: 12px;
   color: var(--on-surface);
   display: flex;
   justify-content: center;
@@ -123,7 +126,7 @@
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
   border: 1px solid var(--level-1-border);
-  border-radius: 8px;
+  border-radius: 16px;
   box-shadow: 0 20px 60px rgba(0,0,0,0.5);
   display: flex;
   flex-direction: column;
@@ -282,7 +285,7 @@
 .setup-check-btn {
   width: 100%;
   padding: 16px 24px;
-  border-radius: 2px;
+  border-radius: 8px;
   border: 1px solid var(--outline-variant);
   background: transparent;
   font-family: var(--font-body);
@@ -332,7 +335,7 @@
 .setup-continue-btn {
   width: 100%;
   padding: 16px 24px;
-  border-radius: 2px;
+  border-radius: 8px;
   border: none;
   background-color: var(--primary-container);
   font-family: var(--font-body);

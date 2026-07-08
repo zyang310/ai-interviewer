@@ -11,7 +11,7 @@
 .settings-layout {
   display: flex;
   align-items: flex-start;
-  gap: 40px;
+  gap: 24px;
   width: 100%;
   max-width: 1080px;
   margin: 0 auto;
@@ -23,22 +23,42 @@
   flex-shrink: 0;
   position: sticky;
   top: 0;
-}
-
-.settings-sidebar-title {
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--on-surface-variant);
-  margin: 0 0 16px;
-  padding: 0 12px;
+  /* Transparent — the nav hugs the window frame; the content island floats beside it. */
+  padding-top: 8px;
 }
 
 .settings-nav {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+}
+
+/* Grouped nav: each concern is its own block; blocks stack tightly and the
+   trailing info block sits below a divider line. */
+.settings-nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.settings-nav-group + .settings-nav-group {
+  margin-top: 14px;
+}
+
+.settings-nav-group.has-divider {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--outline-variant);
+}
+
+/* Section heading — a step larger than the item labels for clearer hierarchy. */
+.settings-nav-group-label {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--outline);
+  margin-bottom: 5px;
+  padding: 0 12px;
 }
 
 .settings-nav-item {
@@ -46,7 +66,7 @@
   align-items: center;
   gap: 12px;
   width: 100%;
-  padding: 9px 12px;
+  padding: 8px 12px;
   border: none;
   border-radius: 8px;
   background: transparent;
@@ -67,11 +87,18 @@
   /* primary at ~12% — matches the mockup's bg-primary/10 active state */
   background-color: color-mix(in srgb, var(--primary) 12%, transparent);
   color: var(--primary);
-  font-weight: 500;
+  font-weight: 700;
 }
 
+/* Icons sit a shade more muted than the label; the active item fills its glyph. */
 .settings-nav-item .material-symbols-outlined {
   font-size: 20px;
+  color: var(--outline);
+}
+
+.settings-nav-item.active .material-symbols-outlined {
+  color: var(--primary);
+  font-variation-settings: "FILL" 1;
 }
 
 /* ── Content pane ────────────────────────────────────────────────────────── */
@@ -81,6 +108,14 @@
   display: flex;
   flex-direction: column;
   gap: 24px;
+  /* Floating island: the content pane lifts off the page as a rounded, shadowed
+     panel — a softer separation from the nav than a hard divider line. The nav
+     stays transparent beside it. */
+  background: var(--level-1-bg);
+  border: 1px solid var(--level-1-border);
+  border-radius: 20px;
+  padding: 28px 32px 36px;
+  box-shadow: 0 16px 40px -24px rgba(0, 0, 0, 0.35);
 }
 
 .settings-head h1 {
@@ -407,7 +442,9 @@
   flex: 1;
   height: 4px;
   border-radius: 2px;
-  background-color: var(--surface-container);
+  /* Not --surface-container: that equals the enclosing card's bg, so the track
+     vanishes. Use the highest surface for a track that reads against the card. */
+  background-color: var(--surface-container-highest);
   outline: none;
   -webkit-appearance: none;
   appearance: none;
@@ -568,10 +605,11 @@
   margin: 0;
 }
 
-/* ── Narrow windows: stack the sidebar above content ─────────────────────── */
+/* ── Narrow windows: stack the sidebar above the content island ──────────── */
 @media (max-width: 720px) {
   .settings-layout {
     flex-direction: column;
+    gap: 16px;
   }
   .settings-sidebar {
     width: 100%;
@@ -580,5 +618,8 @@
   .settings-nav {
     flex-direction: row;
     flex-wrap: wrap;
+  }
+  .settings-content {
+    padding: 20px;
   }
 }

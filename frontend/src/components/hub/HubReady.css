@@ -94,7 +94,7 @@
   border-radius: 12px;
   background: var(--preview-bg);
   border: 1px solid var(--outline-variant);
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 12px 28px -16px rgba(0, 0, 0, 0.35);
   overflow: hidden;
 }
 

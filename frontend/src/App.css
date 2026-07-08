@@ -5,6 +5,24 @@
   overflow: hidden;
   /* Opaque background for non-overlay screens (window itself is transparent). */
   background-color: var(--background);
+  /* Rounded window corners: the frameless window is transparent, so the area
+     outside this radius stays see-through (macOS clips its shadow to match). */
+  border-radius: 12px;
+}
+
+/* Titlebar drag strip: a transparent full-width band at the top of the window
+   that gives the frameless window a move handle on every screen. It sits below
+   the floating nav (z 50) and window controls (z 1000) — both of which opt out
+   of dragging — so only the empty top band initiates a window drag. Its height
+   matches .app-content's top padding, so it never overlaps scrollable content. */
+.app-drag-region {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 84px;
+  z-index: 40;
+  --wails-draggable: drag;
 }
 
 /* ── Floating pill navigation (global) ────────────────────────────────── */

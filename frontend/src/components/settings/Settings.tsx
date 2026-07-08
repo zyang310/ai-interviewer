@@ -116,15 +116,42 @@ interface NavItem {
   icon: string; // Material Symbols name
 }
 
-const NAV: NavItem[] = [
-  { id: "general", label: "General", icon: "tune" },
-  { id: "models", label: "Models", icon: "neurology" },
-  { id: "api-keys", label: "API Keys", icon: "key" },
-  { id: "voice", label: "Voice Calibration", icon: "record_voice_over" },
-  { id: "push-to-talk", label: "Voice Hotkey", icon: "keyboard" },
-  { id: "capture", label: "Capture Prefs", icon: "settings_input_component" },
-  { id: "privacy", label: "Privacy", icon: "security" },
-  { id: "about", label: "About", icon: "info" },
+// Sidebar sections are grouped by concern. A group with a `label` shows a small
+// uppercase heading; the trailing info group (Privacy/About) has no label and
+// instead sits below a divider line (`divider: true`).
+interface NavGroup {
+  label?: string;
+  divider?: boolean;
+  items: NavItem[];
+}
+
+const NAV_GROUPS: NavGroup[] = [
+  {
+    label: "Interview",
+    items: [
+      { id: "general", label: "General", icon: "tune" },
+      { id: "models", label: "Models", icon: "neurology" },
+      { id: "capture", label: "Capture Prefs", icon: "settings_input_component" },
+    ],
+  },
+  {
+    label: "Voice",
+    items: [
+      { id: "voice", label: "Voice Calibration", icon: "record_voice_over" },
+      { id: "push-to-talk", label: "Voice Hotkey", icon: "keyboard" },
+    ],
+  },
+  {
+    label: "Keys",
+    items: [{ id: "api-keys", label: "API Keys", icon: "key" }],
+  },
+  {
+    divider: true,
+    items: [
+      { id: "privacy", label: "Privacy", icon: "security" },
+      { id: "about", label: "About", icon: "info" },
+    ],
+  },
 ];
 
 interface Props {
@@ -406,17 +433,26 @@ export default function Settings({
     <div className="settings-page">
       <div className="settings-layout">
         <aside className="settings-sidebar">
-          <h2 className="settings-sidebar-title">Configuration</h2>
           <nav className="settings-nav">
-            {NAV.map((item) => (
-              <button
-                key={item.id}
-                className={`settings-nav-item${section === item.id ? " active" : ""}`}
-                onClick={() => goTo(item.id)}
+            {NAV_GROUPS.map((group, i) => (
+              <div
+                key={group.label ?? `group-${i}`}
+                className={`settings-nav-group${group.divider ? " has-divider" : ""}`}
               >
-                <span className="material-symbols-outlined">{item.icon}</span>
-                <span>{item.label}</span>
-              </button>
+                {group.label && (
+                  <span className="settings-nav-group-label">{group.label}</span>
+                )}
+                {group.items.map((item) => (
+                  <button
+                    key={item.id}
+                    className={`settings-nav-item${section === item.id ? " active" : ""}`}
+                    onClick={() => goTo(item.id)}
+                  >
+                    <span className="material-symbols-outlined">{item.icon}</span>
+                    <span>{item.label}</span>
+                  </button>
+                ))}
+              </div>
             ))}
           </nav>
         </aside>
