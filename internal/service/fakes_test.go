@@ -35,6 +35,7 @@ type fakeStore struct {
 	saveSessionDebrief   func(id, debrief string) error
 	listStarredCompanies func() ([]string, error)
 	setCompanyStarred    func(slug string, starred bool) error
+	clearAll             func() error
 }
 
 func (f *fakeStore) GetPreferences() (models.Preferences, error) {
@@ -82,6 +83,13 @@ func (f *fakeStore) ListStarredCompanies() ([]string, error) {
 func (f *fakeStore) SetCompanyStarred(slug string, starred bool) error {
 	if f.setCompanyStarred != nil {
 		return f.setCompanyStarred(slug, starred)
+	}
+	return nil
+}
+
+func (f *fakeStore) ClearAll() error {
+	if f.clearAll != nil {
+		return f.clearAll()
 	}
 	return nil
 }

@@ -265,6 +265,21 @@ func (a *App) GetHotkeyStatus() hotkey.Status {
 }
 
 // ---------------------------------------------------------------------------
+// Local data
+// ---------------------------------------------------------------------------
+
+// ClearAllLocalData wipes all local state — sessions, transcripts, preferences,
+// and API keys — returning the app to a first-run state and deactivating the
+// provider clients. Refused while a session is live (end it first). The frontend
+// gates this behind a typed "CONFIRM"; there is no undo.
+func (a *App) ClearAllLocalData() error {
+	if a.interview.ActiveID() != "" {
+		return fmt.Errorf("end the active session before clearing local data")
+	}
+	return a.settings.ClearAllData(a.ctx)
+}
+
+// ---------------------------------------------------------------------------
 // Models
 // ---------------------------------------------------------------------------
 

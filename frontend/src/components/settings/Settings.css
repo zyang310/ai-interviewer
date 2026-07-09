@@ -104,34 +104,35 @@
 }
 
 /* ── Content pane ────────────────────────────────────────────────────────── */
+/* Flush layout: no outer island — the header sits directly on the page
+   background and each section's content supplies its own floating card(s).
+   Zero horizontal padding so the title left-aligns with the content cards. */
 .settings-content {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 24px;
-  /* Floating island: the content pane lifts off the page as a rounded, shadowed
-     panel — a softer separation from the nav than a hard divider line. The nav
-     stays transparent beside it. */
-  background: var(--level-1-bg);
-  border-radius: 20px;
-  padding: 28px 32px 36px;
-  box-shadow: 0 28px 60px -20px rgba(0, 0, 0, 0.5);
+  padding: 4px 0 40px;
 }
 
+/* Display-serif title, part of the page (not a card) — the heading reads as a
+   page banner above the floating content cards. */
 .settings-head h1 {
-  font-size: 32px;
-  font-weight: 600;
+  font-family: var(--font-display);
+  font-size: 44px;
+  font-weight: 700;
+  line-height: 1.05;
   letter-spacing: -0.01em;
   color: var(--on-surface);
   margin: 0;
 }
 
 .settings-head p {
-  font-size: 14px;
+  font-size: 16px;
   color: var(--on-surface-variant);
-  margin: 8px 0 0;
-  max-width: 560px;
+  margin: 12px 0 0;
+  max-width: 620px;
 }
 
 /* ── Cards ───────────────────────────────────────────────────────────────── */
@@ -144,7 +145,9 @@
   border: 1px solid var(--level-1-border);
   border-radius: 12px;
   padding: 24px;
-  box-shadow: 0 6px 18px -14px rgba(0, 0, 0, 0.35);
+  /* Match the Voice Calibration card so every section's cards cast the same
+     lift. */
+  box-shadow: 0 14px 32px -18px rgba(0, 0, 0, 0.4);
 }
 
 /* Dark theme keeps a distinct card fill so cards still separate from the
@@ -277,14 +280,7 @@
   gap: 12px;
   /* Tighter than the default 24px card padding so the provider rows read compact. */
   padding: 16px 18px;
-  /* Deeper lift than the default settings card: each provider reads as a
-     distinct floating panel instead of a flat block on the pane. */
-  box-shadow: 0 14px 32px -16px rgba(60, 50, 30, 0.45);
-}
-
-/* Dark needs a bigger, near-black shadow to register against the dark pane. */
-:root[data-theme="dark"] .apikey-card {
-  box-shadow: 0 18px 44px -14px rgba(0, 0, 0, 0.7);
+  /* Shadow inherited from .settings-card so every section's cards match. */
 }
 
 .apikey-head {
@@ -622,16 +618,19 @@
   cursor: default;
 }
 
-/* ── Voice Calibration — merged panel ────────────────────────────────────────
-   One panel with three numbered sections (Provider / Interviewer Voice /
-   Speaking Speed) split by hairline gradient dividers. Mirrors the .settings-card
-   surface treatment: soft-paper in light, container fill in dark. */
+/* ── Voice Calibration — content card ────────────────────────────────────────
+   The three numbered sections (Provider / Interviewer Voice / Speaking Speed)
+   live in one card that floats on the page background below the (now-flush)
+   header. No section dividers — spacing alone separates them. Mirrors the
+   .settings-card surface: soft-paper in light, container fill in dark. */
 .vc-panel {
+  display: flex;
+  flex-direction: column;
   background: var(--surface-bright);
   border: 1px solid var(--level-1-border);
   border-radius: 16px;
-  overflow: hidden;
   box-shadow: 0 14px 32px -18px rgba(0, 0, 0, 0.4);
+  padding: 14px 26px;
 }
 
 :root[data-theme="dark"] .vc-panel {
@@ -639,7 +638,15 @@
 }
 
 .vc-section {
-  padding: 24px 26px;
+  padding: 22px 0;
+}
+
+.vc-section:first-child {
+  padding-top: 6px;
+}
+
+.vc-section:last-child {
+  padding-bottom: 6px;
 }
 
 .vc-section-head {
@@ -670,18 +677,6 @@
   color: var(--on-surface-variant);
   max-width: 600px;
   margin: 0 0 16px;
-}
-
-/* Fades to transparent at both ends so the divider reads as a soft seam. */
-.vc-divider {
-  height: 1px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    var(--outline-variant) 12%,
-    var(--outline-variant) 88%,
-    transparent
-  );
 }
 
 /* Reset link in the Speaking Speed header. */
@@ -733,7 +728,6 @@
 .vc-provider.is-selected {
   background: color-mix(in srgb, var(--primary) 9%, transparent);
   border-color: var(--primary);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 12%, transparent);
 }
 
 .vc-provider:disabled {
@@ -1160,12 +1154,6 @@
 }
 
 /* ── Status + feedback ───────────────────────────────────────────────────── */
-.settings-status {
-  font-size: 13px;
-  color: var(--on-surface-variant);
-  margin-bottom: 12px;
-}
-
 .status-ok {
   color: var(--secondary);
   font-weight: 600;
@@ -1209,29 +1197,841 @@
   margin: 0;
 }
 
-.settings-privacy-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: 6px;
-  padding: 40px 24px;
-  border-radius: 12px;
-  border: 1px solid var(--level-2-border);
-  background: var(--level-2-bg);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+/* ── General → Appearance theme tiles ────────────────────────────────────────
+   Three tappable previews replace the old segmented control. Each tile frames a
+   miniature "Ready" card painted in that theme's own hardcoded palette (inline
+   styles from THEME_TILES), so a light preview stays light even while the app is
+   dark. Only the tile chrome uses MD3 tokens. */
+.appearance-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
 }
 
-.settings-privacy-card .material-symbols-outlined {
-  font-size: 40px;
-  color: var(--secondary);
+.theme-tile {
+  display: flex;
+  flex-direction: column;
+  border-radius: 14px;
+  overflow: hidden;
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+  background: var(--surface-container-lowest);
+  border: 2px solid var(--outline-variant);
+  font-family: inherit;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+:root[data-theme="dark"] .theme-tile {
+  background: var(--surface-container-high);
+}
+
+.theme-tile:hover:not(.is-selected) {
+  border-color: var(--outline);
+}
+
+.theme-tile.is-selected {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 12%, transparent);
+}
+
+/* Mini app-preview strip — one half per palette (System shows light | dark). */
+.theme-prev {
+  display: flex;
+  height: 150px;
+  overflow: hidden;
+}
+
+.theme-prev-half {
+  flex: 1;
+  min-width: 0;
+  padding: 13px;
+  display: flex;
+  align-items: center;
+}
+
+.theme-prev-card {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid;
+  border-radius: 9px;
+  padding: 11px 12px;
+  box-shadow: 0 4px 12px -8px rgba(0, 0, 0, 0.4);
+}
+
+.theme-prev-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 7px;
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.theme-prev-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.theme-prev-title {
+  font-family: var(--font-display);
+  font-size: 13px;
+  margin-bottom: 9px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.theme-prev-btn {
+  height: 24px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9.5px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.theme-prev-pills {
+  display: flex;
+  gap: 4px;
+}
+
+.theme-prev-pills span {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 8px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* Split (System) preview packs two mini-cards into one tile, so each half is
+   far narrower than the single-preview Light/Dark tiles. Compact the contents
+   just here so nothing overflows (the button no longer clips mid-word). */
+.theme-prev.is-split .theme-prev-half {
+  padding: 9px;
+}
+
+.theme-prev.is-split .theme-prev-card {
+  padding: 9px 9px;
+}
+
+.theme-prev.is-split .theme-prev-status {
+  font-size: 7.5px;
   margin-bottom: 6px;
 }
 
-.settings-privacy-card .settings-hint {
-  max-width: 460px;
-  margin: 0;
+.theme-prev.is-split .theme-prev-title {
+  font-size: 10.5px;
+  margin-bottom: 7px;
+}
+
+.theme-prev.is-split .theme-prev-btn {
+  height: 20px;
+  font-size: 8px;
+  margin-bottom: 7px;
+}
+
+.theme-prev.is-split .theme-prev-pills span {
+  font-size: 7px;
+  padding: 2px 6px;
+}
+
+.theme-tile-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 30px;
+  padding: 12px 14px;
+}
+
+.theme-tile-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--on-surface);
+  line-height: 1.2;
+}
+
+.theme-tile-sub {
+  font-size: 12.5px;
+  color: var(--outline);
+  margin-top: 2px;
+}
+
+.theme-tile-check {
+  font-size: 22px;
+  color: var(--primary);
+  font-variation-settings: "FILL" 1;
+}
+
+/* ── General → Session timeline ──────────────────────────────────────────────
+   A bar spanning the limit; the accent fill runs 0 → warning with a gold marker
+   at the warning point. Reflects the live Limit/Warning inputs below it. */
+.timeline {
+  margin-bottom: 24px;
+}
+
+.timeline-track {
+  position: relative;
+  height: 12px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--primary) 9%, transparent);
+}
+
+.timeline-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: 999px;
+  background: var(--primary);
+}
+
+.timeline-fill--untimed {
+  width: 100%;
+  background: color-mix(in srgb, var(--outline) 40%, transparent);
+}
+
+.timeline-marker {
+  position: absolute;
+  top: -6px;
+  width: 3px;
+  height: 24px;
+  border-radius: 2px;
+  background: var(--warning);
+  transform: translateX(-50%);
+}
+
+.timeline-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 14px;
+  font-size: 13px;
+  color: var(--on-surface-variant);
+}
+
+.timeline-label strong {
+  color: var(--on-surface-variant);
+  font-weight: 700;
+}
+
+.timeline-label .timeline-limit {
+  color: var(--on-surface);
+}
+
+.timeline-label--warn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: color-mix(in srgb, var(--warning) 72%, #000);
+}
+
+.timeline-label--warn strong {
+  color: inherit;
+}
+
+:root[data-theme="dark"] .timeline-label--warn {
+  color: var(--warning);
+}
+
+.timeline-warn-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--warning);
+}
+
+.timeline-label--muted {
+  color: var(--outline);
+}
+
+/* ── Privacy → reassurance banner ────────────────────────────────────────── */
+.privacy-banner {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  border-radius: 16px;
+  padding: 22px 26px;
+  background: var(--surface-bright);
+  border: 1px solid var(--level-1-border);
+  box-shadow: 0 14px 32px -18px rgba(0, 0, 0, 0.4);
+}
+
+:root[data-theme="dark"] .privacy-banner {
+  background: var(--surface-container);
+}
+
+.privacy-banner-icon {
+  flex-shrink: 0;
+  width: 54px;
+  height: 54px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--secondary) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--secondary) 25%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.privacy-banner-icon .material-symbols-outlined {
+  font-size: 30px;
+  color: var(--secondary);
+  font-variation-settings: "FILL" 1;
+}
+
+.privacy-banner-title {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--on-surface);
+}
+
+.privacy-banner-desc {
+  font-size: 15px;
+  color: var(--on-surface-variant);
+  margin-top: 3px;
+  max-width: 720px;
+  line-height: 1.5;
+}
+
+/* ── Privacy → data map ──────────────────────────────────────────────────────
+   A .settings-card with its padding removed so rows can span edge-to-edge with
+   hairline dividers between them. */
+.datamap {
+  padding: 0;
+  overflow: hidden;
+}
+
+.datamap-head {
+  padding: 16px 22px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--outline);
+  border-bottom: 1px solid var(--outline-variant);
+}
+
+.datamap-row {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 15px 22px;
+}
+
+.datamap-row.has-border {
+  border-bottom: 1px solid var(--outline-variant);
+}
+
+.datamap-icon {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--primary) 9%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.datamap-icon .material-symbols-outlined {
+  font-size: 21px;
+  color: var(--primary);
+}
+
+.datamap-meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.datamap-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--on-surface);
+}
+
+.datamap-desc {
+  font-size: 13px;
+  color: var(--on-surface-variant);
+  margin-top: 2px;
+  line-height: 1.5;
+}
+
+.datamap-badge {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.datamap-badge-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.datamap-badge--ok {
+  color: var(--secondary);
+  background: color-mix(in srgb, var(--secondary) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--secondary) 28%, transparent);
+}
+
+.datamap-badge--warn {
+  color: color-mix(in srgb, var(--warning) 72%, #000);
+  background: color-mix(in srgb, var(--warning) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warning) 32%, transparent);
+}
+
+:root[data-theme="dark"] .datamap-badge--warn {
+  color: var(--warning);
+}
+
+/* ── Privacy → actions + destructive confirm ─────────────────────────────────
+   Reveal reuses .btn.btn-ghost.btn-icon; Clear is an outlined danger button and
+   opens a confirm strip that requires typing CONFIRM before the wipe fires. */
+.privacy-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.privacy-danger-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--error) 40%, transparent);
+  background: color-mix(in srgb, var(--error) 6%, transparent);
+  color: var(--error);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  transition: background-color 0.2s, border-color 0.2s;
+}
+
+.privacy-danger-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--error) 12%, transparent);
+  border-color: var(--error);
+}
+
+.privacy-danger-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.privacy-danger-btn .material-symbols-outlined {
+  font-size: 16px;
+}
+
+/* Centered popup dialog — scrim + card. Ported from the Stitch mockup to MD3
+   tokens; mirrors the app's modal convention (see .company-modal-overlay). */
+.privacy-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 110;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background-color: rgba(0, 0, 0, 0.6);
+  animation: privacy-modal-fade 0.15s ease-out;
+}
+
+.privacy-modal {
+  width: 428px;
+  max-width: 94vw;
+  padding: 32px 32px 24px;
+  text-align: center;
+  border-radius: 20px;
+  border-top: 4px solid var(--error);
+  background-color: var(--level-1-bg);
+  box-shadow: 0 24px 60px -22px rgba(0, 0, 0, 0.6);
+  animation: privacy-modal-rise 0.18s ease-out;
+}
+
+/* Danger glyph in a soft haloed disc. */
+.privacy-modal-icon {
+  width: 72px;
+  height: 72px;
+  margin: 4px auto 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--error) 12%, transparent);
+  box-shadow: 0 0 0 9px color-mix(in srgb, var(--error) 6%, transparent);
+}
+
+.privacy-modal-icon .material-symbols-outlined {
+  font-size: 36px;
+  color: var(--error);
+}
+
+.privacy-modal-title {
+  margin: 0 0 12px;
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--on-surface);
+}
+
+.privacy-modal-desc {
+  margin: 0 auto 22px;
+  max-width: 34ch;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--on-surface-variant);
+}
+
+.privacy-modal-input {
+  width: 100%;
+  text-align: center;
+  margin-bottom: 14px;
+  font-family: var(--font-mono);
+  font-size: 15px;
+  letter-spacing: 0.12em;
+}
+
+/* Border shifts once the typed text matches — a live "you're good" cue. */
+.privacy-modal-input--valid {
+  border-color: var(--primary);
+}
+
+.privacy-modal-go {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 13px;
+  border: none;
+  border-radius: 11px;
+  background: var(--error);
+  color: var(--surface-container-lowest);
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 0.15s, opacity 0.15s;
+}
+
+.privacy-modal-go .material-symbols-outlined {
+  font-size: 19px;
+}
+
+.privacy-modal-go:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--error) 88%, black);
+}
+
+.privacy-modal-cancel {
+  width: 100%;
+  margin-top: 6px;
+  padding: 11px;
+  border: none;
+  background: transparent;
+  color: var(--on-surface-variant);
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.privacy-modal-cancel:hover:not(:disabled) {
+  color: var(--on-surface);
+}
+
+.privacy-modal-go:disabled,
+.privacy-modal-cancel:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+@keyframes privacy-modal-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes privacy-modal-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ── About → identity block ──────────────────────────────────────────────── */
+.about-identity {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+  border-radius: 16px;
+  padding: 24px 28px;
+  background: var(--surface-bright);
+  border: 1px solid var(--level-1-border);
+  box-shadow: 0 14px 32px -18px rgba(0, 0, 0, 0.4);
+}
+
+:root[data-theme="dark"] .about-identity {
+  background: var(--surface-container);
+}
+
+.about-logo {
+  flex-shrink: 0;
+  width: 66px;
+  height: 66px;
+  border-radius: 16px;
+  background: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 27px;
+  letter-spacing: 0.05em;
+  color: var(--on-primary);
+}
+
+.about-identity-meta {
+  flex: 1;
+  min-width: 160px;
+}
+
+.about-name {
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--on-surface);
+  line-height: 1;
+}
+
+.about-tagline {
+  font-size: 15px;
+  color: var(--on-surface-variant);
+  margin-top: 6px;
+}
+
+.about-identity-side {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 7px;
+}
+
+.about-version-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--secondary) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--secondary) 28%, transparent);
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--secondary);
+}
+
+.about-version-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--secondary);
+}
+
+.about-build {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--outline);
+}
+
+/* ── About → software updates ────────────────────────────────────────────── */
+.about-update-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
+.about-update-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.about-update-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.about-update-status--ok {
+  color: var(--secondary);
+}
+.about-update-status--ok .about-update-dot {
+  background: var(--secondary);
+}
+
+.about-update-status--new {
+  color: var(--primary);
+}
+.about-update-status--new .about-update-dot {
+  background: var(--primary);
+}
+
+.about-update-status--muted {
+  color: var(--outline);
+}
+.about-update-status--muted .about-update-dot {
+  background: var(--outline);
+}
+
+.about-tip {
+  display: flex;
+  gap: 11px;
+  padding: 14px 16px;
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--warning) 9%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warning) 28%, transparent);
+}
+
+.about-tip .material-symbols-outlined {
+  font-size: 20px;
+  color: var(--warning);
+  flex-shrink: 0;
+}
+
+.about-tip div {
+  font-size: 13px;
+  color: var(--on-surface-variant);
+  line-height: 1.6;
+}
+
+.about-tip code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: color-mix(in srgb, var(--on-surface) 8%, transparent);
+  padding: 1px 6px;
+  border-radius: 5px;
+}
+
+/* ── About → project links ───────────────────────────────────────────────── */
+.about-links-label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--outline);
+  margin-bottom: 12px;
+  padding-left: 2px;
+}
+
+.about-links {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+
+.about-link {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px;
+  border-radius: 14px;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  background: var(--surface-bright);
+  border: 1px solid var(--level-1-border);
+  box-shadow: 0 6px 18px -14px rgba(0, 0, 0, 0.35);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+:root[data-theme="dark"] .about-link {
+  background: var(--surface-container);
+}
+
+.about-link:hover {
+  border-color: var(--primary);
+  box-shadow: 0 12px 26px -16px rgba(0, 0, 0, 0.45);
+}
+
+.about-link-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.about-link-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--primary) 9%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.about-link-icon .material-symbols-outlined {
+  font-size: 21px;
+  color: var(--primary);
+}
+
+.about-link-arrow {
+  font-size: 18px;
+  color: var(--outline);
+}
+
+.about-link-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--on-surface);
+  line-height: 1.25;
+}
+
+.about-link-sub {
+  font-size: 12.5px;
+  color: var(--on-surface-variant);
+  margin-top: 3px;
+}
+
+/* Narrow content pane: collapse the multi-column grids to one column. */
+@media (max-width: 620px) {
+  .appearance-grid,
+  .about-links {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* ── Narrow windows: stack the sidebar above the content island ──────────── */
@@ -1249,6 +2049,6 @@
     flex-wrap: wrap;
   }
   .settings-content {
-    padding: 20px;
+    padding: 8px 0 32px;
   }
 }

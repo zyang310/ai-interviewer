@@ -12,6 +12,7 @@ import (
 // DB wraps a SQLite connection.
 type DB struct {
 	conn *sql.DB
+	path string // absolute path to data.db, for the Settings "reveal file" action
 }
 
 // Open creates the application data directory if needed, opens the SQLite
@@ -38,7 +39,7 @@ func Open() (*DB, error) {
 		return nil, fmt.Errorf("store: enable WAL: %w", err)
 	}
 
-	db := &DB{conn: conn}
+	db := &DB{conn: conn, path: path}
 	if err := db.migrate(); err != nil {
 		return nil, fmt.Errorf("store: migrate: %w", err)
 	}
@@ -48,6 +49,35 @@ func Open() (*DB, error) {
 // Close shuts down the database connection.
 func (db *DB) Close() error {
 	return db.conn.Close()
+}
+
+// Path returns the absolute path to the SQLite file, so the UI can reveal it in
+// the OS file manager.
+func (db *DB) Path() string {
+	return db.path
+}
+
+// ClearAll deletes every row from every table in one transaction, resetting the
+// app to a first-run state: sessions, transcripts, preferences (which also hold
+// the API keys), and starred companies. The schema and file are left in place —
+// GetPreferences falls back to defaults and GetAPIKey returns empty. Messages go
+// first to respect the foreign key into sessions.
+func (db *DB) ClearAll() error {
+	tx, err := db.conn.Begin()
+	if err != nil {
+		return fmt.Errorf("store: clear all: begin: %w", err)
+	}
+	defer tx.Rollback()
+
+	for _, table := range []string{"messages", "sessions", "preferences", "starred_companies"} {
+		if _, err := tx.Exec("DELETE FROM " + table); err != nil {
+			return fmt.Errorf("store: clear %s: %w", table, err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("store: clear all: commit: %w", err)
+	}
+	return nil
 }
 
 // migrate creates tables that do not yet exist and backfills columns added in

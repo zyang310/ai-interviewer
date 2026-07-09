@@ -3,6 +3,7 @@
 
 export {
   CheckForUpdate,
+  ClearAllLocalData,
   DeleteAPIKey,
   DeleteSession,
   EndSession,
@@ -28,6 +29,7 @@ export {
   OpenURL,
   PreviewVoice,
   QuitApp,
+  RevealDatabaseFile,
   SendMessage,
   SetAPIKey,
   SetCaptureRegion,

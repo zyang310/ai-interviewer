@@ -18,6 +18,7 @@ type SettingsStore interface {
 	SavePreferences(p models.Preferences) error
 	ListStarredCompanies() ([]string, error)
 	SetCompanyStarred(slug string, starred bool) error
+	ClearAll() error
 }
 
 // HotkeyApplier is the control surface of the global push-to-talk hook.
@@ -62,6 +63,26 @@ func (s *Settings) DeleteAPIKey(provider string) error {
 		return err
 	}
 	s.providers.SetKey(provider, "") // empty key deactivates the slot
+	return nil
+}
+
+// ClearAllData wipes every piece of local state — sessions, transcripts,
+// preferences, API keys, and starred companies — returning the app to a
+// first-run state. It then deactivates every provider client (their keys are
+// gone) and re-applies the now-default hotkey and capture region, so the running
+// app matches the reset store without a restart. Destructive and irreversible;
+// callers gate it behind an explicit confirmation.
+func (s *Settings) ClearAllData(ctx context.Context) error {
+	if err := s.store.ClearAll(); err != nil {
+		return err
+	}
+	// Keys lived in the wiped preferences table — drop the live clients too.
+	for _, provider := range []string{"openrouter", "elevenlabs", "google"} {
+		s.providers.SetKey(provider, "")
+	}
+	// Preferences now read back as defaults; re-sync the infra they drive.
+	s.ApplySavedRegion()
+	s.ApplyHotkey(ctx)
 	return nil
 }
 

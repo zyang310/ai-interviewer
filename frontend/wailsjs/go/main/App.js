@@ -6,6 +6,10 @@ export function CheckForUpdate() {
   return window['go']['main']['App']['CheckForUpdate']();
 }
 
+export function ClearAllLocalData() {
+  return window['go']['main']['App']['ClearAllLocalData']();
+}
+
 export function DeleteAPIKey(arg1) {
   return window['go']['main']['App']['DeleteAPIKey'](arg1);
 }
@@ -104,6 +108,10 @@ export function PreviewVoice(arg1) {
 
 export function QuitApp() {
   return window['go']['main']['App']['QuitApp']();
+}
+
+export function RevealDatabaseFile() {
+  return window['go']['main']['App']['RevealDatabaseFile']();
 }
 
 export function SendMessage(arg1) {

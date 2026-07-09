@@ -8,7 +8,9 @@ interface Props {
   onSelect: (voiceId: string) => void; // parent persists via UpdatePreferences
   speed?: number; // playback rate for previews, so they reflect the speed slider
   provider?: string; // active TTS provider; refetch the catalog when it changes
-  onCountChange?: (count: number) => void; // report catalog size up for the header note
+  // Report the loaded catalog up: lets Settings show the "N voices available"
+  // note and resolve stored voice ids (ElevenLabs ids are opaque hashes) to names.
+  onCatalog?: (voices: models.Voice[]) => void;
 }
 
 // VoicePicker is a searchable list of the active provider's voices for Settings.
@@ -21,7 +23,7 @@ export default function VoicePicker({
   onSelect,
   speed = 1,
   provider,
-  onCountChange,
+  onCatalog,
 }: Props) {
   const [allVoices, setAllVoices] = useState<models.Voice[]>([]);
   const [loading, setLoading] = useState(true);
@@ -42,7 +44,7 @@ export default function VoicePicker({
         const list = await ListVoices();
         if (!cancelled) {
           setAllVoices(list ?? []);
-          onCountChange?.((list ?? []).length);
+          onCatalog?.(list ?? []);
         }
       } catch (e: any) {
         if (!cancelled) setError(e?.message || String(e));

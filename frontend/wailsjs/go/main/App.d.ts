@@ -6,6 +6,8 @@ import {capture} from '../models';
 
 export function CheckForUpdate():Promise<models.UpdateInfo>;
 
+export function ClearAllLocalData():Promise<void>;
+
 export function DeleteAPIKey(arg1:string):Promise<void>;
 
 export function DeleteSession(arg1:string):Promise<void>;
@@ -55,6 +57,8 @@ export function OpenURL(arg1:string):Promise<void>;
 export function PreviewVoice(arg1:string):Promise<string>;
 
 export function QuitApp():Promise<void>;
+
+export function RevealDatabaseFile():Promise<void>;
 
 export function SendMessage(arg1:string):Promise<string>;
 

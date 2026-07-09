@@ -7,6 +7,9 @@ package main
 
 import (
 	"fmt"
+	"os/exec"
+	"path/filepath"
+	goruntime "runtime"
 	"time"
 
 	"mogi/internal/capture"
@@ -38,6 +41,30 @@ func (a *App) OpenReleasePage(url string) error {
 		return fmt.Errorf("no download URL available")
 	}
 	runtime.BrowserOpenURL(a.ctx, url)
+	return nil
+}
+
+// RevealDatabaseFile opens the OS file manager with the SQLite database selected,
+// so the user can back it up or delete it by hand from the Privacy screen. Uses
+// the native "reveal" verb per platform (Finder/Explorer select the file itself;
+// Linux falls back to opening the containing folder).
+func (a *App) RevealDatabaseFile() error {
+	path := a.db.Path()
+	if path == "" {
+		return fmt.Errorf("database path unavailable")
+	}
+	var cmd *exec.Cmd
+	switch goruntime.GOOS {
+	case "darwin":
+		cmd = exec.Command("open", "-R", path)
+	case "windows":
+		cmd = exec.Command("explorer", "/select,"+path)
+	default:
+		cmd = exec.Command("xdg-open", filepath.Dir(path))
+	}
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("reveal database file: %w", err)
+	}
 	return nil
 }
 

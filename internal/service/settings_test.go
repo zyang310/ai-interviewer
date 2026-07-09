@@ -85,6 +85,51 @@ func TestAPIKeysFlipRegistry(t *testing.T) {
 	}
 }
 
+// TestClearAllData verifies the destructive wipe clears the store, deactivates
+// every provider client, and re-syncs the hotkey + capture region from the
+// now-default preferences — all in one call.
+func TestClearAllData(t *testing.T) {
+	cleared := false
+	st := &fakeStore{clearAll: func() error { cleared = true; return nil }}
+	s, p, screen, hk := settingsWith(st)
+
+	// Seed live clients so we can prove they get deactivated.
+	p.SetKey("openrouter", "k")
+	p.SetKey("elevenlabs", "k")
+	p.SetKey("google", "k")
+
+	if err := s.ClearAllData(context.Background()); err != nil {
+		t.Fatalf("ClearAllData() error: %v", err)
+	}
+	if !cleared {
+		t.Error("ClearAllData must call store.ClearAll")
+	}
+	if p.AI() != nil || p.ElevenLabs() != nil || p.Google() != nil {
+		t.Error("ClearAllData must deactivate every provider client")
+	}
+	if len(screen.regions) != 1 {
+		t.Errorf("ClearAllData must re-apply the capture region, got %d applies", len(screen.regions))
+	}
+	if len(hk.applies) != 1 {
+		t.Errorf("ClearAllData must re-apply the hotkey, got %d applies", len(hk.applies))
+	}
+}
+
+// TestClearAllDataStoreError surfaces a store failure and leaves the live
+// clients untouched (a failed wipe must not half-reset the app).
+func TestClearAllDataStoreError(t *testing.T) {
+	st := &fakeStore{clearAll: func() error { return errors.New("db locked") }}
+	s, p, _, _ := settingsWith(st)
+	p.SetKey("openrouter", "k")
+
+	if err := s.ClearAllData(context.Background()); err == nil {
+		t.Error("ClearAllData should surface the store error")
+	}
+	if p.AI() == nil {
+		t.Error("a failed wipe must not deactivate clients")
+	}
+}
+
 // TestAuthStatus maps the three stored keys onto the status struct.
 func TestAuthStatus(t *testing.T) {
 	st := &fakeStore{getAPIKey: func(provider string) (string, error) {

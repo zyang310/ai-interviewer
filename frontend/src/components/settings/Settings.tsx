@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import {
   SetAPIKey,
   DeleteAPIKey,
+  ClearAllLocalData,
   GetAuthStatus,
   GetAppVersion,
   GetHotkeyStatus,
@@ -10,6 +11,8 @@ import {
   CheckForUpdate,
   OpenInputMonitoringSettings,
   OpenReleasePage,
+  OpenURL,
+  RevealDatabaseFile,
   UpdatePreferences,
   models,
   hotkey,
@@ -103,6 +106,119 @@ const KEY_CARDS: KeyCard[] = [
       </>
     ),
   },
+];
+
+// Per-theme palettes for the Appearance preview tiles. Hardcoded on purpose
+// (not MD3 tokens): each tile must render its own theme's colors regardless of
+// the app's current theme, so the light preview stays light even in dark mode.
+// Values mirror the light/dark token blocks in style.css.
+interface PreviewPalette {
+  bg: string;
+  surface: string;
+  border: string;
+  ink: string;
+  muted: string;
+  accent: string;
+  onAccent: string;
+  secondary: string;
+  secondarySoft: string;
+  accentSoft: string;
+}
+
+const LIGHT_PREVIEW: PreviewPalette = {
+  bg: "#F1E7D7",
+  surface: "#FCF9F2",
+  border: "#E4D7C4",
+  ink: "#23264A",
+  muted: "#8a8172",
+  accent: "#2C2F5A",
+  onAccent: "#EDE3D6",
+  secondary: "#5F7639",
+  secondarySoft: "rgba(95,118,57,.14)",
+  accentSoft: "rgba(44,47,90,.12)",
+};
+
+const DARK_PREVIEW: PreviewPalette = {
+  bg: "#141631",
+  surface: "#1E2142",
+  border: "#333764",
+  ink: "#EDE3D6",
+  muted: "#8f8aa0",
+  accent: "#8E93E0",
+  onAccent: "#14162A",
+  secondary: "#A0BA76",
+  secondarySoft: "rgba(160,186,118,.16)",
+  accentSoft: "rgba(142,147,224,.18)",
+};
+
+// Appearance theme choices, each with the preview palette(s) it renders. "System"
+// shows both halves (light | dark); the concrete themes show one.
+const THEME_TILES: {
+  id: ThemePref;
+  name: string;
+  sub: string;
+  halves: PreviewPalette[];
+}[] = [
+  { id: "system", name: "System", sub: "Matches your OS", halves: [LIGHT_PREVIEW, DARK_PREVIEW] },
+  { id: "light", name: "Light", sub: "Warm washi", halves: [LIGHT_PREVIEW] },
+  { id: "dark", name: "Dark", sub: "Indigo night", halves: [DARK_PREVIEW] },
+];
+
+// The Privacy "where your data lives" map. `tone` drives the badge color:
+// "ok" (matcha) for data that never leaves the device, "warn" (gold) for data
+// streamed to a provider only during a live session.
+const PRIVACY_ROWS: {
+  icon: string;
+  name: string;
+  desc: string;
+  badge: string;
+  tone: "ok" | "warn";
+}[] = [
+  {
+    icon: "settings",
+    name: "Settings & preferences",
+    desc: "Themes, timings, hotkeys and model choices.",
+    badge: "On device",
+    tone: "ok",
+  },
+  {
+    icon: "key",
+    name: "API keys",
+    desc: "Stored in the local database; sent only inside authenticated requests to your providers.",
+    badge: "On device",
+    tone: "ok",
+  },
+  {
+    icon: "history",
+    name: "Interview history & transcripts",
+    desc: "Every session and its notes stay in the local SQLite file.",
+    badge: "On device",
+    tone: "ok",
+  },
+  {
+    icon: "screenshot_monitor",
+    name: "Screen captures",
+    desc: "Sent to your model provider during a live session to answer — never written to disk.",
+    badge: "In-session only",
+    tone: "warn",
+  },
+  {
+    icon: "graphic_eq",
+    name: "Voice audio",
+    desc: "Streamed to your speech provider only while a spoken interview is running.",
+    badge: "In-session only",
+    tone: "warn",
+  },
+];
+
+// About → Project links. Opened in the user's real browser via OpenURL (not the
+// webview). No LICENSE file in the repo, so the fourth card points at docs/.
+const REPO_URL = "https://github.com/zyang310/mogi";
+const ABOUT_LINKS: { icon: string; name: string; sub: string; href: string }[] = [
+  { icon: "code", name: "Repository", sub: "Source on GitHub", href: REPO_URL },
+  { icon: "deployed_code", name: "Releases", sub: "Download builds", href: `${REPO_URL}/releases` },
+  { icon: "bug_report", name: "Report an issue", sub: "Bugs & requests", href: `${REPO_URL}/issues` },
+  { icon: "description", name: "Documentation", sub: "Architecture & specs", href: `${REPO_URL}/tree/main/docs` },
 ];
 
 // Settings is a full page (not a modal). A left "Configuration" sidebar switches
@@ -211,6 +327,10 @@ export default function Settings({
   // Count of the active provider's voices, reported up by VoicePicker so the
   // "N voices available" note can sit in the section header (outside the list).
   const [voiceCount, setVoiceCount] = useState<number | null>(null);
+  // id → friendly name, accumulated across providers as their catalogs load, so
+  // the provider tiles can show a stored voice's name (ElevenLabs ids are opaque
+  // hashes) rather than the raw id.
+  const [voiceNames, setVoiceNames] = useState<Record<string, string>>({});
   // Push-to-talk: capturing = listening for the next keypress to bind; hkStatus
   // reports whether the global hook is live (drives the macOS permission hint).
   const [capturing, setCapturing] = useState(false);
@@ -220,6 +340,12 @@ export default function Settings({
   const [checking, setChecking] = useState(false);
   const [updateInfo, setUpdateInfo] = useState<models.UpdateInfo | null>(null);
   const [checkedOnce, setCheckedOnce] = useState(false);
+  // Privacy: reveal-in-finder + the destructive "clear all" flow (open the
+  // confirm strip, then require an exact "CONFIRM" before the irreversible wipe).
+  const [revealing, setRevealing] = useState(false);
+  const [clearOpen, setClearOpen] = useState(false);
+  const [clearConfirm, setClearConfirm] = useState("");
+  const [clearing, setClearing] = useState(false);
 
   // Load preferences on mount.
   useEffect(() => {
@@ -377,6 +503,17 @@ export default function Settings({
     return savePrefs({ voiceSpeed }, "Voice speed saved.");
   }
 
+  // Ingest a provider's loaded catalog: track its size for the header note and
+  // merge id→name so the provider tiles can label stored voices by name.
+  function handleCatalog(voices: models.Voice[]) {
+    setVoiceCount(voices.length);
+    setVoiceNames((prev) => {
+      const next = { ...prev };
+      for (const v of voices) if (v.name) next[v.id] = v.name;
+      return next;
+    });
+  }
+
   const keyInputs: Record<KeyProvider, string> = {
     openrouter: openRouterKey,
     elevenlabs: elevenLabsKey,
@@ -469,6 +606,49 @@ export default function Settings({
     }
   }
 
+  // Open the OS file manager with the SQLite database selected (Privacy section).
+  async function revealDatabase() {
+    setRevealing(true);
+    setError("");
+    setSuccess("");
+    try {
+      await RevealDatabaseFile();
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    } finally {
+      setRevealing(false);
+    }
+  }
+
+  // Wipe every local record. Guarded by an exact "CONFIRM" match; on success we
+  // reload auth + prefs from the now-empty store so the whole UI reflects the
+  // reset without a restart. Theme lives in localStorage, so it's left intact.
+  async function clearAllData() {
+    if (clearConfirm !== "CONFIRM") return;
+    setClearing(true);
+    setError("");
+    setSuccess("");
+    try {
+      await ClearAllLocalData();
+      onAuthChange(await GetAuthStatus());
+      const p = await GetPreferences();
+      setPrefs(p);
+      setIntervalSec(String(Math.max(1, Math.round(p.captureIntervalMs / 1000))));
+      setLimitMinutes(String(p.sessionLimitMinutes ?? 30));
+      setWarningMinutes(String(p.softWarningMinutes ?? 25));
+      setVoiceSpeed(p.voiceSpeed || 1);
+      setTtsProvider(p.ttsProvider || "google");
+      onPrefsChange?.(p);
+      setClearOpen(false);
+      setClearConfirm("");
+      setSuccess("All local data cleared. The app is back to a first-run state.");
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    } finally {
+      setClearing(false);
+    }
+  }
+
   const activeProvider = resolveProvider(ttsProvider);
   const anyVoiceConfigured = authStatus.googleConfigured || authStatus.elevenLabsConfigured;
   const configured: Record<KeyProvider, boolean> = {
@@ -476,6 +656,27 @@ export default function Settings({
     elevenlabs: authStatus.elevenLabsConfigured,
     google: authStatus.googleConfigured,
   };
+
+  // Session-timeline geometry (General): the accent fill runs 0 → warning with a
+  // gold marker at the warning point; the whole bar spans the limit. A limit of 0
+  // is untimed practice — no fill, no markers.
+  const limitNum = Math.max(0, Number(limitMinutes) || 0);
+  const warnNum = Math.max(0, Number(warningMinutes) || 0);
+  const hasWarn = limitNum > 0 && warnNum > 0 && warnNum < limitNum;
+  const warnPct = hasWarn ? (warnNum / limitNum) * 100 : 0;
+
+  // About identity build line, e.g. "macOS · local build" (GOOS + version).
+  const osLabel =
+    hkStatus?.goos === "darwin"
+      ? "macOS"
+      : hkStatus?.goos === "windows"
+        ? "Windows"
+        : hkStatus?.goos === "linux"
+          ? "Linux"
+          : "";
+  const buildLabel = `${osLabel ? osLabel + " · " : ""}${
+    appVersion && appVersion !== "dev" ? "release build" : "local build"
+  }`;
 
   // Voice-hotkey footer state. Off → muted; on but (macOS) still awaiting Input
   // Monitoring → warning with a shortcut to grant it; otherwise the hook is live.
@@ -516,12 +717,14 @@ export default function Settings({
           </nav>
         </aside>
 
+        {/* Flush layout: the page title sits on the background and each section's
+            content floats as its own card(s) below it. */}
         <div className="settings-content">
           {section === "general" && (
             <>
               <header className="settings-head">
                 <h1>General</h1>
-                <p>Session behavior and timing for your mock interviews.</p>
+                <p>Session behavior and appearance for your mock interviews.</p>
               </header>
               <div className="settings-card">
                 <div className="settings-card-head">
@@ -531,25 +734,124 @@ export default function Settings({
                 <p className="settings-hint">
                   Color theme for the app. “System” follows your OS light/dark setting.
                 </p>
-                <div className="settings-segmented">
-                  {(["system", "light", "dark"] as ThemePref[]).map((opt) => (
-                    <button
-                      key={opt}
-                      type="button"
-                      className={`settings-segment${themePref === opt ? " active" : ""}`}
-                      onClick={() => onThemeChange(opt)}
-                    >
-                      {opt === "system" ? "System" : opt === "light" ? "Light" : "Dark"}
-                    </button>
-                  ))}
+                <div className="appearance-grid">
+                  {THEME_TILES.map((t) => {
+                    const on = themePref === t.id;
+                    return (
+                      <button
+                        key={t.id}
+                        type="button"
+                        className={`theme-tile${on ? " is-selected" : ""}`}
+                        onClick={() => onThemeChange(t.id)}
+                      >
+                        <div className={`theme-prev${t.halves.length > 1 ? " is-split" : ""}`}>
+                          {t.halves.map((h, i) => (
+                            <div
+                              key={i}
+                              className="theme-prev-half"
+                              style={{ background: h.bg }}
+                            >
+                              <div
+                                className="theme-prev-card"
+                                style={{ background: h.surface, borderColor: h.border }}
+                              >
+                                <div className="theme-prev-status">
+                                  <span
+                                    className="theme-prev-dot"
+                                    style={{ background: h.secondary }}
+                                  />
+                                  <span style={{ color: h.muted }}>Ready</span>
+                                </div>
+                                <div className="theme-prev-title" style={{ color: h.ink }}>
+                                  Ready to begin?
+                                </div>
+                                <div
+                                  className="theme-prev-btn"
+                                  style={{ background: h.accent, color: h.onAccent }}
+                                >
+                                  Start session
+                                </div>
+                                <div className="theme-prev-pills">
+                                  <span
+                                    style={{ background: h.secondarySoft, color: h.secondary }}
+                                  >
+                                    Easy
+                                  </span>
+                                  <span style={{ background: h.accentSoft, color: h.accent }}>
+                                    Focus
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="theme-tile-foot">
+                          <div>
+                            <div className="theme-tile-name">{t.name}</div>
+                            <div className="theme-tile-sub">{t.sub}</div>
+                          </div>
+                          {on && (
+                            <span className="material-symbols-outlined theme-tile-check">
+                              check_circle
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
               <div className="settings-card">
-                <h3 className="settings-card-title">Session time limit</h3>
+                <div className="settings-card-head">
+                  <span className="material-symbols-outlined">schedule</span>
+                  <h3 className="settings-card-title">Session time limit</h3>
+                </div>
                 <p className="settings-hint">
                   Set the limit to 0 for untimed practice. The warning fires N minutes
                   before the limit; 0 disables it.
                 </p>
+
+                {/* Live timeline: reflects the current Limit/Warning inputs. */}
+                <div className="timeline">
+                  <div className="timeline-track">
+                    {limitNum > 0 ? (
+                      <>
+                        <div
+                          className="timeline-fill"
+                          style={{ width: `${hasWarn ? warnPct : 100}%` }}
+                        />
+                        {hasWarn && (
+                          <div className="timeline-marker" style={{ left: `${warnPct}%` }} />
+                        )}
+                      </>
+                    ) : (
+                      <div className="timeline-fill timeline-fill--untimed" />
+                    )}
+                  </div>
+                  <div className="timeline-labels">
+                    {limitNum > 0 ? (
+                      <>
+                        <span className="timeline-label">
+                          <strong>0m</strong> start
+                        </span>
+                        {hasWarn && (
+                          <span className="timeline-label timeline-label--warn">
+                            <span className="timeline-warn-dot" />
+                            Warning at <strong>{warnNum}m</strong>
+                          </span>
+                        )}
+                        <span className="timeline-label">
+                          <strong className="timeline-limit">{limitNum}m</strong> limit
+                        </span>
+                      </>
+                    ) : (
+                      <span className="timeline-label timeline-label--muted">
+                        Untimed practice — no limit or warning
+                      </span>
+                    )}
+                  </div>
+                </div>
+
                 <div className="settings-field-row">
                   <div className="settings-field">
                     <label className="settings-label">Limit (min)</label>
@@ -586,14 +888,15 @@ export default function Settings({
           )}
 
           {section === "models" && (
-            // No card chrome here: "Model Architecture" is promoted to the section
-            // header and the picker sits directly on the pane, so there's no inner
-            // card boundary — the inset list well is the only container left.
             <>
               <header className="settings-head">
                 <h1>Model Architecture</h1>
               </header>
-              <ModelPicker currentModelId={prefs?.model ?? ""} onSelect={saveModel} />
+              {/* Flush layout: the picker floats in its own card like every
+                  other section's content. */}
+              <div className="settings-card">
+                <ModelPicker currentModelId={prefs?.model ?? ""} onSelect={saveModel} />
+              </div>
             </>
           )}
 
@@ -778,8 +1081,7 @@ export default function Settings({
                       <span className="vc-section-note">Each provider remembers its own voice.</span>
                     </div>
                     <p className="vc-section-desc">
-                      Sets the spoken voice only. Mic transcription uses ElevenLabs when its key is
-                      present, otherwise Google.
+                      Sets the spoken voice only. Mic transcription uses ElevenLabs if key is available, otherwise Google.
                     </p>
                     <div className="vc-provider-grid">
                       {VOICE_PROVIDERS.map((p) => {
@@ -790,6 +1092,8 @@ export default function Settings({
                             : authStatus.elevenLabsConfigured;
                         const remembered =
                           p.id === "google" ? prefs?.googleVoiceId : prefs?.voiceId;
+                        const rememberedLabel =
+                          (remembered && voiceNames[remembered]) || remembered || "Not set";
                         return (
                           <button
                             key={p.id}
@@ -811,15 +1115,13 @@ export default function Settings({
                             <div className="vc-provider-name">{p.name}</div>
                             <div className="vc-provider-voice">
                               <span className="material-symbols-outlined">graphic_eq</span>
-                              {remembered || "Not set"}
+                              {rememberedLabel}
                             </div>
                           </button>
                         );
                       })}
                     </div>
                   </div>
-
-                  <div className="vc-divider" />
 
                   {/* 02 · INTERVIEWER VOICE — searchable list of the active provider's voices. */}
                   <div className="vc-section">
@@ -841,11 +1143,9 @@ export default function Settings({
                       }
                       onSelect={saveVoice}
                       speed={voiceSpeed}
-                      onCountChange={setVoiceCount}
+                      onCatalog={handleCatalog}
                     />
                   </div>
-
-                  <div className="vc-divider" />
 
                   {/* 03 · SPEAKING SPEED — custom track over a transparent range input. */}
                   <div className="vc-section">
@@ -1058,17 +1358,128 @@ export default function Settings({
             <>
               <header className="settings-head">
                 <h1>Privacy</h1>
-                <p>Where your data lives.</p>
+                <p>Where your data lives, and what leaves this device.</p>
               </header>
-              <div className="settings-privacy-card">
-                <span className="material-symbols-outlined">verified_user</span>
-                <h3 className="settings-card-title">Stored locally</h3>
-                <p className="settings-hint">
-                  All settings and API keys are kept in a local SQLite database on this
-                  device. Your API tokens never leave the client except during authenticated
-                  requests to OpenRouter.
-                </p>
+
+              {/* Reassurance banner. */}
+              <div className="privacy-banner">
+                <span className="privacy-banner-icon">
+                  <span className="material-symbols-outlined">verified_user</span>
+                </span>
+                <div>
+                  <div className="privacy-banner-title">Everything stays on this device</div>
+                  <div className="privacy-banner-desc">
+                    Mogi has no account and no cloud of its own. Your data sits in a local
+                    SQLite database and only leaves for the provider requests you trigger.
+                  </div>
+                </div>
               </div>
+
+              {/* Data map: one row per kind of data, badged by where it lives. */}
+              <div className="settings-card datamap">
+                <div className="datamap-head">Where your data lives</div>
+                {PRIVACY_ROWS.map((r, i) => (
+                  <div
+                    className={`datamap-row${i === PRIVACY_ROWS.length - 1 ? "" : " has-border"}`}
+                    key={r.name}
+                  >
+                    <span className="datamap-icon">
+                      <span className="material-symbols-outlined">{r.icon}</span>
+                    </span>
+                    <div className="datamap-meta">
+                      <div className="datamap-name">{r.name}</div>
+                      <div className="datamap-desc">{r.desc}</div>
+                    </div>
+                    <span className={`datamap-badge datamap-badge--${r.tone}`}>
+                      <span className="datamap-badge-dot" />
+                      {r.badge}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Actions: reveal the DB file, or wipe everything (gated below). */}
+              <div className="privacy-actions">
+                <button
+                  className="btn btn-ghost btn-icon"
+                  onClick={revealDatabase}
+                  disabled={revealing}
+                >
+                  <span className="material-symbols-outlined">folder_open</span>
+                  {revealing ? "Revealing…" : "Reveal database file"}
+                </button>
+                <button
+                  type="button"
+                  className="privacy-danger-btn"
+                  onClick={() => {
+                    setClearOpen(true);
+                    setClearConfirm("");
+                    setError("");
+                    setSuccess("");
+                  }}
+                  disabled={clearing}
+                >
+                  <span className="material-symbols-outlined">delete_forever</span>
+                  Clear all local data
+                </button>
+              </div>
+
+              {/* Destructive confirm — a centered popup, still gated on typing CONFIRM.
+                  Scrim click dismisses (unless mid-wipe); the card stops propagation. */}
+              {clearOpen && (
+                <div
+                  className="privacy-modal-overlay"
+                  onClick={() => {
+                    if (clearing) return;
+                    setClearOpen(false);
+                    setClearConfirm("");
+                  }}
+                >
+                  <div className="privacy-modal" onClick={(e) => e.stopPropagation()}>
+                    <div className="privacy-modal-icon">
+                      <span className="material-symbols-outlined">delete_forever</span>
+                    </div>
+                    <h2 className="privacy-modal-title">Delete everything?</h2>
+                    <p className="privacy-modal-desc">
+                      Your settings, API keys, and interview history will be permanently
+                      removed from this device. This cannot be undone.
+                    </p>
+                    <input
+                      className={`settings-input privacy-modal-input${
+                        clearConfirm === "CONFIRM" ? " privacy-modal-input--valid" : ""
+                      }`}
+                      value={clearConfirm}
+                      onChange={(e) => setClearConfirm(e.target.value)}
+                      placeholder="Type CONFIRM"
+                      autoFocus
+                      spellCheck={false}
+                      autoCapitalize="characters"
+                      disabled={clearing}
+                      onKeyDown={(e) => e.key === "Enter" && clearAllData()}
+                    />
+                    <button
+                      type="button"
+                      className="privacy-modal-go"
+                      onClick={clearAllData}
+                      disabled={clearConfirm !== "CONFIRM" || clearing}
+                    >
+                      <span className="material-symbols-outlined">delete_forever</span>
+                      {clearing ? "Clearing…" : "Clear everything"}
+                    </button>
+                    <button
+                      type="button"
+                      className="privacy-modal-cancel"
+                      onClick={() => {
+                        setClearOpen(false);
+                        setClearConfirm("");
+                      }}
+                      disabled={clearing}
+                    >
+                      Keep my data
+                    </button>
+                  </div>
+                </div>
+              )}
             </>
           )}
 
@@ -1076,27 +1487,44 @@ export default function Settings({
             <>
               <header className="settings-head">
                 <h1>About</h1>
-                <p>Version and software updates.</p>
+                <p>Version, updates, and project links.</p>
               </header>
+
+              {/* Identity block. */}
+              <div className="about-identity">
+                <span className="about-logo">模擬</span>
+                <div className="about-identity-meta">
+                  <div className="about-name">Mogi</div>
+                  <div className="about-tagline">
+                    Realtime mock-interview copilot for your desktop.
+                  </div>
+                </div>
+                <div className="about-identity-side">
+                  <span className="about-version-pill">
+                    <span className="about-version-dot" />
+                    Version {appVersion || "dev"}
+                  </span>
+                  <span className="about-build">{buildLabel}</span>
+                </div>
+              </div>
+
+              {/* Software updates. */}
               <div className="settings-card">
                 <div className="settings-card-head">
-                  <span className="material-symbols-outlined">info</span>
-                  <h3 className="settings-card-title">Mogi</h3>
-                </div>
-                <div className="settings-status">
-                  Version: <span className="status-ok">{appVersion || "—"}</span>
+                  <span className="material-symbols-outlined">system_update_alt</span>
+                  <h3 className="settings-card-title">Software updates</h3>
                 </div>
                 <p className="settings-hint">
-                  Updates are published on GitHub. The app is unsigned, so installing one
-                  means downloading the new version and replacing the app — you may need to
-                  right-click → Open (or run <code>xattr -cr</code>) the first time.
+                  Releases are published on GitHub. The app is unsigned, so updating means
+                  downloading the new build and replacing the app.
                 </p>
-                <div className="settings-field-row">
+                <div className="about-update-row">
                   <button
-                    className="btn btn-primary"
+                    className="btn btn-primary btn-icon"
                     onClick={checkForUpdate}
                     disabled={checking}
                   >
+                    <span className="material-symbols-outlined">refresh</span>
                     {checking ? "Checking…" : "Check for updates"}
                   </button>
                   {updateInfo?.available && (
@@ -1110,23 +1538,60 @@ export default function Settings({
                       Download {updateInfo.latestVersion}
                     </button>
                   )}
+                  {checkedOnce && !checking && (
+                    updateInfo?.available ? (
+                      <span className="about-update-status about-update-status--new">
+                        <span className="about-update-dot" />
+                        {updateInfo.latestVersion} available — you have{" "}
+                        {updateInfo.currentVersion}
+                      </span>
+                    ) : updateInfo?.latestVersion ? (
+                      <span className="about-update-status about-update-status--ok">
+                        <span className="about-update-dot" />
+                        Up to date — you’re on the latest
+                      </span>
+                    ) : (
+                      <span className="about-update-status about-update-status--muted">
+                        No published releases to compare against yet
+                      </span>
+                    )
+                  )}
                 </div>
-                {checkedOnce && !checking && (
-                  updateInfo?.available ? (
-                    <p className="settings-hint">
-                      <span className="status-ok">●</span> {updateInfo.latestVersion} is
-                      available — you have {updateInfo.currentVersion}.
-                    </p>
-                  ) : updateInfo?.latestVersion ? (
-                    <p className="settings-hint">
-                      <span className="status-ok">●</span> You're on the latest version.
-                    </p>
-                  ) : (
-                    <p className="settings-hint settings-hint-muted">
-                      No published releases to compare against yet.
-                    </p>
-                  )
-                )}
+                <div className="about-tip">
+                  <span className="material-symbols-outlined">lightbulb</span>
+                  <div>
+                    First launch after replacing may be blocked by macOS. Right-click the app
+                    → <strong>Open</strong>, or run <code>xattr -cr</code> on it once.
+                  </div>
+                </div>
+              </div>
+
+              {/* Project links. */}
+              <div className="about-links-wrap">
+                <div className="about-links-label">Project</div>
+                <div className="about-links">
+                  {ABOUT_LINKS.map((l) => (
+                    <button
+                      type="button"
+                      className="about-link"
+                      key={l.name}
+                      onClick={() => OpenURL(l.href)}
+                    >
+                      <div className="about-link-top">
+                        <span className="about-link-icon">
+                          <span className="material-symbols-outlined">{l.icon}</span>
+                        </span>
+                        <span className="material-symbols-outlined about-link-arrow">
+                          north_east
+                        </span>
+                      </div>
+                      <div>
+                        <div className="about-link-name">{l.name}</div>
+                        <div className="about-link-sub">{l.sub}</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
               </div>
             </>
           )}

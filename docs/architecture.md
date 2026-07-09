@@ -154,6 +154,10 @@ func (a *App) OpenURL(url string) error                                         
 func (a *App) GetPreferences() (models.Preferences, error)
 func (a *App) UpdatePreferences(prefs models.Preferences) error
 
+// Local data (Privacy screen) — the SQLite file is the whole footprint
+func (a *App) RevealDatabaseFile() error   // reveal data.db in Finder/Explorer (window.go, os/exec)
+func (a *App) ClearAllLocalData() error    // wipe sessions/transcripts/prefs/keys → first-run state; refused mid-session; UI gates it behind a typed "CONFIRM"
+
 // Models
 func (a *App) ListAvailableModels() ([]models.Model, error)  // OpenRouter catalog for the picker (cached ~1h)
 
