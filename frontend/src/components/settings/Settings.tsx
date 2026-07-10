@@ -1,225 +1,24 @@
 import { useEffect, useState } from "react";
-import type { ReactNode } from "react";
 import {
-  SetAPIKey,
-  DeleteAPIKey,
-  ClearAllLocalData,
   GetAuthStatus,
   GetAppVersion,
   GetHotkeyStatus,
   GetPreferences,
-  CheckForUpdate,
-  OpenInputMonitoringSettings,
-  OpenReleasePage,
-  OpenURL,
-  RevealDatabaseFile,
   UpdatePreferences,
   models,
   hotkey,
 } from "../../lib/wailsBridge";
-import { comboFromKeyboardEvent, bareModifierFromCode, hotkeyKeycaps } from "../../lib/hotkey";
 import type { ThemePref } from "../../lib/theme";
-import ModelPicker from "./ModelPicker";
-import VoicePicker from "./VoicePicker";
+// Shell CSS first so shared .settings-* classes load before section styles.
 import "./Settings.css";
-
-type KeyProvider = "openrouter" | "elevenlabs" | "google";
-
-const PROVIDER_LABELS: Record<KeyProvider, string> = {
-  openrouter: "OpenRouter",
-  elevenlabs: "ElevenLabs",
-  google: "Google Cloud",
-};
-
-// The two spoken-voice providers, rendered as selectable tiles in Voice
-// Calibration. `tone` drives the pill color (low-cost = matcha, premium =
-// gold); `keyLabel` names the API key a tile needs when it isn't configured.
-const VOICE_PROVIDERS = [
-  { id: "google", name: "Google", tag: "Low cost", tone: "low", keyLabel: "Google Cloud" },
-  { id: "elevenlabs", name: "ElevenLabs", tag: "Premium", tone: "premium", keyLabel: "ElevenLabs" },
-] as const;
-
-// Per-provider metadata for the API-key cards. The three cards are structurally
-// identical, so we drive them from this list (label, icon tile, input hint,
-// placeholder) and render one <ApiKeyCard> per entry rather than hand-repeating.
-interface KeyCard {
-  id: KeyProvider;
-  icon: string; // Material Symbols name for the icon tile
-  placeholder: string;
-  hint: ReactNode;
-}
-
-const KEY_CARDS: KeyCard[] = [
-  {
-    id: "openrouter",
-    icon: "router",
-    placeholder: "sk-or-...",
-    hint: (
-      <>
-        Get a key at{" "}
-        <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer">
-          openrouter.ai/keys
-        </a>
-      </>
-    ),
-  },
-  {
-    id: "elevenlabs",
-    icon: "graphic_eq",
-    placeholder: "sk-el-...",
-    hint: (
-      <>
-        Optional — premium spoken interviews.{" "}
-        <a
-          href="https://elevenlabs.io/app/settings/api-keys"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          elevenlabs.io
-        </a>
-      </>
-    ),
-  },
-  {
-    id: "google",
-    icon: "cloud",
-    placeholder: "AIza...",
-    hint: (
-      <>
-        Low-cost spoken interviews. Enable the{" "}
-        <a
-          href="https://console.cloud.google.com/apis/library/texttospeech.googleapis.com"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Text-to-Speech API
-        </a>{" "}
-        and create a key in{" "}
-        <a
-          href="https://console.cloud.google.com/apis/credentials"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Credentials
-        </a>
-        .
-      </>
-    ),
-  },
-];
-
-// Per-theme palettes for the Appearance preview tiles. Hardcoded on purpose
-// (not MD3 tokens): each tile must render its own theme's colors regardless of
-// the app's current theme, so the light preview stays light even in dark mode.
-// Values mirror the light/dark token blocks in style.css.
-interface PreviewPalette {
-  bg: string;
-  surface: string;
-  border: string;
-  ink: string;
-  muted: string;
-  accent: string;
-  onAccent: string;
-  secondary: string;
-  secondarySoft: string;
-  accentSoft: string;
-}
-
-const LIGHT_PREVIEW: PreviewPalette = {
-  bg: "#F1E7D7",
-  surface: "#FCF9F2",
-  border: "#E4D7C4",
-  ink: "#23264A",
-  muted: "#8a8172",
-  accent: "#2C2F5A",
-  onAccent: "#EDE3D6",
-  secondary: "#5F7639",
-  secondarySoft: "rgba(95,118,57,.14)",
-  accentSoft: "rgba(44,47,90,.12)",
-};
-
-const DARK_PREVIEW: PreviewPalette = {
-  bg: "#141631",
-  surface: "#1E2142",
-  border: "#333764",
-  ink: "#EDE3D6",
-  muted: "#8f8aa0",
-  accent: "#8E93E0",
-  onAccent: "#14162A",
-  secondary: "#A0BA76",
-  secondarySoft: "rgba(160,186,118,.16)",
-  accentSoft: "rgba(142,147,224,.18)",
-};
-
-// Appearance theme choices, each with the preview palette(s) it renders. "System"
-// shows both halves (light | dark); the concrete themes show one.
-const THEME_TILES: {
-  id: ThemePref;
-  name: string;
-  sub: string;
-  halves: PreviewPalette[];
-}[] = [
-  { id: "system", name: "System", sub: "Matches your OS", halves: [LIGHT_PREVIEW, DARK_PREVIEW] },
-  { id: "light", name: "Light", sub: "Warm washi", halves: [LIGHT_PREVIEW] },
-  { id: "dark", name: "Dark", sub: "Indigo night", halves: [DARK_PREVIEW] },
-];
-
-// The Privacy "where your data lives" map. `tone` drives the badge color:
-// "ok" (matcha) for data that never leaves the device, "warn" (gold) for data
-// streamed to a provider only during a live session.
-const PRIVACY_ROWS: {
-  icon: string;
-  name: string;
-  desc: string;
-  badge: string;
-  tone: "ok" | "warn";
-}[] = [
-  {
-    icon: "settings",
-    name: "Settings & preferences",
-    desc: "Themes, timings, hotkeys and model choices.",
-    badge: "On device",
-    tone: "ok",
-  },
-  {
-    icon: "key",
-    name: "API keys",
-    desc: "Stored in the local database; sent only inside authenticated requests to your providers.",
-    badge: "On device",
-    tone: "ok",
-  },
-  {
-    icon: "history",
-    name: "Interview history & transcripts",
-    desc: "Every session and its notes stay in the local SQLite file.",
-    badge: "On device",
-    tone: "ok",
-  },
-  {
-    icon: "screenshot_monitor",
-    name: "Screen captures",
-    desc: "Sent to your model provider during a live session to answer — never written to disk.",
-    badge: "In-session only",
-    tone: "warn",
-  },
-  {
-    icon: "graphic_eq",
-    name: "Voice audio",
-    desc: "Streamed to your speech provider only while a spoken interview is running.",
-    badge: "In-session only",
-    tone: "warn",
-  },
-];
-
-// About → Project links. Opened in the user's real browser via OpenURL (not the
-// webview). No LICENSE file in the repo, so the fourth card points at docs/.
-const REPO_URL = "https://github.com/zyang310/mogi";
-const ABOUT_LINKS: { icon: string; name: string; sub: string; href: string }[] = [
-  { icon: "code", name: "Repository", sub: "Source on GitHub", href: REPO_URL },
-  { icon: "deployed_code", name: "Releases", sub: "Download builds", href: `${REPO_URL}/releases` },
-  { icon: "bug_report", name: "Report an issue", sub: "Bugs & requests", href: `${REPO_URL}/issues` },
-  { icon: "description", name: "Documentation", sub: "Architecture & specs", href: `${REPO_URL}/tree/main/docs` },
-];
+import AboutSection from "./AboutSection";
+import ApiKeysSection from "./ApiKeysSection";
+import CaptureSection from "./CaptureSection";
+import GeneralSection from "./GeneralSection";
+import ModelsSection from "./ModelsSection";
+import PrivacySection from "./PrivacySection";
+import PushToTalkSection from "./PushToTalkSection";
+import VoiceSection from "./VoiceSection";
 
 // Settings is a full page (not a modal). A left "Configuration" sidebar switches
 // between sections; the right pane renders the active section. Navigation in/out
@@ -300,21 +99,9 @@ export default function Settings({
   const [section, setSection] = useState<Section>(
     authStatus.openRouterConfigured ? "models" : "api-keys"
   );
-  const [openRouterKey, setOpenRouterKey] = useState("");
-  const [elevenLabsKey, setElevenLabsKey] = useState("");
-  const [googleKey, setGoogleKey] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  // API-key card state. A card rests in "view" (configured) or "bare" (not set);
-  // `keyUi` holds a transient override — "edit" (replacing) or "confirmRemove".
-  // Only one overflow menu is open at a time.
-  const [keyUi, setKeyUi] = useState<Partial<Record<KeyProvider, "edit" | "confirmRemove">>>({});
-  const [openKeyMenu, setOpenKeyMenu] = useState<KeyProvider | null>(null);
-  // Per-provider reveal toggle for the key being entered (edit/bare only — the
-  // stored key is never sent to the frontend, so there's nothing to reveal in view).
-  const [keyReveal, setKeyReveal] = useState<Partial<Record<KeyProvider, boolean>>>({});
-
   const [prefs, setPrefs] = useState<models.Preferences | null>(null);
   const [intervalSec, setIntervalSec] = useState("3");
   const [limitMinutes, setLimitMinutes] = useState("30");
@@ -331,34 +118,27 @@ export default function Settings({
   // the provider tiles can show a stored voice's name (ElevenLabs ids are opaque
   // hashes) rather than the raw id.
   const [voiceNames, setVoiceNames] = useState<Record<string, string>>({});
-  // Push-to-talk: capturing = listening for the next keypress to bind; hkStatus
-  // reports whether the global hook is live (drives the macOS permission hint).
-  const [capturing, setCapturing] = useState(false);
+  // Global voice-hotkey hook status: PushToTalkSection drives it, About reads
+  // its GOOS for the build line — so it lives here in the shell.
   const [hkStatus, setHkStatus] = useState<hotkey.Status | null>(null);
-  // About: app version + on-demand update check (mirrors the launch-time banner).
+  // About: app version for the identity block (the update check lives in
+  // AboutSection).
   const [appVersion, setAppVersion] = useState("");
-  const [checking, setChecking] = useState(false);
-  const [updateInfo, setUpdateInfo] = useState<models.UpdateInfo | null>(null);
-  const [checkedOnce, setCheckedOnce] = useState(false);
-  // Privacy: reveal-in-finder + the destructive "clear all" flow (open the
-  // confirm strip, then require an exact "CONFIRM" before the irreversible wipe).
-  const [revealing, setRevealing] = useState(false);
-  const [clearOpen, setClearOpen] = useState(false);
-  const [clearConfirm, setClearConfirm] = useState("");
-  const [clearing, setClearing] = useState(false);
+
+  // Sync the shell-held input mirrors from a fresh Preferences read. Used on
+  // mount and after "Clear all data" resets the store.
+  function seedFromPrefs(p: models.Preferences) {
+    setPrefs(p);
+    setIntervalSec(String(Math.max(1, Math.round(p.captureIntervalMs / 1000))));
+    setLimitMinutes(String(p.sessionLimitMinutes ?? 30));
+    setWarningMinutes(String(p.softWarningMinutes ?? 25));
+    setVoiceSpeed(p.voiceSpeed || 1);
+    setTtsProvider(p.ttsProvider || "google");
+  }
 
   // Load preferences on mount.
   useEffect(() => {
-    GetPreferences()
-      .then((p) => {
-        setPrefs(p);
-        setIntervalSec(String(Math.max(1, Math.round(p.captureIntervalMs / 1000))));
-        setLimitMinutes(String(p.sessionLimitMinutes ?? 30));
-        setWarningMinutes(String(p.softWarningMinutes ?? 25));
-        setVoiceSpeed(p.voiceSpeed || 1);
-        setTtsProvider(p.ttsProvider || "google");
-      })
-      .catch(() => {});
+    GetPreferences().then(seedFromPrefs).catch(() => {});
     GetAppVersion().then(setAppVersion).catch(() => {});
     refreshHotkeyStatus();
   }, []);
@@ -372,39 +152,6 @@ export default function Settings({
       // Wails runtime not present in browser preview.
     }
   }
-
-  // While capturing, listen window-wide for the next key (or bare modifier) and
-  // store it as the hotkey. Esc cancels. Capture-phase so it pre-empts inputs.
-  useEffect(() => {
-    if (!capturing) return;
-    let sawMainKey = false;
-    function onKeyDown(e: KeyboardEvent) {
-      e.preventDefault();
-      e.stopPropagation();
-      if (e.key === "Escape") {
-        setCapturing(false);
-        return;
-      }
-      const combo = comboFromKeyboardEvent(e);
-      if (combo) {
-        sawMainKey = true;
-        void commitHotkey(combo);
-      }
-    }
-    function onKeyUp(e: KeyboardEvent) {
-      e.preventDefault();
-      e.stopPropagation();
-      if (sawMainKey) return; // a combo already committed on key-down
-      const bare = bareModifierFromCode(e.code);
-      if (bare) void commitHotkey(bare);
-    }
-    window.addEventListener("keydown", onKeyDown, true);
-    window.addEventListener("keyup", onKeyUp, true);
-    return () => {
-      window.removeEventListener("keydown", onKeyDown, true);
-      window.removeEventListener("keyup", onKeyUp, true);
-    };
-  }, [capturing]);
 
   function goTo(s: Section) {
     setSection(s);
@@ -431,78 +178,6 @@ export default function Settings({
     }
   }
 
-  function saveInterval() {
-    const sec = Math.max(1, Math.round(Number(intervalSec) || 3));
-    return savePrefs({ captureIntervalMs: sec * 1000 }, "Capture interval saved.");
-  }
-
-  function saveTimerSettings() {
-    const limit = Math.max(0, Math.round(Number(limitMinutes) || 0));
-    const warning = Math.max(0, Math.round(Number(warningMinutes) || 0));
-    if (limit > 0 && warning >= limit) {
-      setError("Warning time must be less than the session limit.");
-      return;
-    }
-    return savePrefs(
-      { sessionLimitMinutes: limit, softWarningMinutes: warning },
-      "Session timer saved."
-    );
-  }
-
-  function saveModel(modelId: string) {
-    return savePrefs({ model: modelId }, "Model saved.");
-  }
-
-  // The provider actually in effect: the saved choice if its key exists, else
-  // whichever provider is configured. Mirrors app.go's activeTTS fallback so the
-  // picker and saved voice stay consistent with what gets spoken.
-  function resolveProvider(pref: string): string {
-    if (pref === "elevenlabs" && authStatus.elevenLabsConfigured) return "elevenlabs";
-    if (pref === "google" && authStatus.googleConfigured) return "google";
-    if (authStatus.googleConfigured) return "google";
-    if (authStatus.elevenLabsConfigured) return "elevenlabs";
-    return pref;
-  }
-
-  // Voices are provider-specific, so save to the field matching the active provider.
-  function saveVoice(voiceId: string) {
-    const patch =
-      resolveProvider(ttsProvider) === "elevenlabs"
-        ? { voiceId }
-        : { googleVoiceId: voiceId };
-    return savePrefs(patch, "Voice saved.");
-  }
-
-  function saveTTSProvider(provider: string) {
-    setTtsProvider(provider);
-    return savePrefs({ ttsProvider: provider }, "Voice provider saved.");
-  }
-
-  // Enable/disable push-to-talk, then re-read hook status (the backend starts or
-  // stops the global hook in UpdatePreferences). The delayed re-read catches the
-  // async hookEnabled confirmation (and, on macOS, a denied-permission outcome).
-  async function savePTTEnabled(on: boolean) {
-    await savePrefs(
-      { pushToTalkEnabled: on },
-      on ? "Push-to-talk enabled." : "Push-to-talk disabled."
-    );
-    refreshHotkeyStatus();
-    setTimeout(refreshHotkeyStatus, 600);
-  }
-
-  // Persist a captured hotkey and stop listening.
-  async function commitHotkey(spec: string) {
-    setCapturing(false);
-    await savePrefs({ pushToTalkKey: spec }, "Hotkey saved.");
-    refreshHotkeyStatus();
-    setTimeout(refreshHotkeyStatus, 600);
-  }
-
-  // Persist the slider's current value once the user finishes dragging.
-  function saveVoiceSpeed() {
-    return savePrefs({ voiceSpeed }, "Voice speed saved.");
-  }
-
   // Ingest a provider's loaded catalog: track its size for the header note and
   // merge id→name so the provider tiles can label stored voices by name.
   function handleCatalog(voices: models.Voice[]) {
@@ -514,180 +189,14 @@ export default function Settings({
     });
   }
 
-  const keyInputs: Record<KeyProvider, string> = {
-    openrouter: openRouterKey,
-    elevenlabs: elevenLabsKey,
-    google: googleKey,
-  };
-  const keySetters: Record<KeyProvider, (v: string) => void> = {
-    openrouter: setOpenRouterKey,
-    elevenlabs: setElevenLabsKey,
-    google: setGoogleKey,
-  };
-
-  // Set (or clear) a card's transient mode, closing any menu and discarding the
-  // draft input so a cancelled edit never lingers.
-  function setKeyMode(provider: KeyProvider, mode: "edit" | "confirmRemove" | null) {
-    setKeyUi((s) => {
-      const next = { ...s };
-      if (mode) next[provider] = mode;
-      else delete next[provider];
-      return next;
-    });
-    setOpenKeyMenu(null);
-    keySetters[provider]("");
-    setKeyReveal((s) => ({ ...s, [provider]: false }));
-    setError("");
-    setSuccess("");
+  // After PrivacySection wipes the store: reload auth + prefs from the now-empty
+  // database so the whole UI reflects the reset without a restart.
+  async function handleDataCleared() {
+    onAuthChange(await GetAuthStatus());
+    const p = await GetPreferences();
+    seedFromPrefs(p);
+    onPrefsChange?.(p);
   }
-
-  async function saveKey(provider: KeyProvider) {
-    const key = keyInputs[provider].trim();
-    if (!key) return;
-    setSaving(true);
-    setError("");
-    setSuccess("");
-    try {
-      await SetAPIKey(provider, key);
-      onAuthChange(await GetAuthStatus());
-      keySetters[provider]("");
-      setKeyUi((s) => {
-        const next = { ...s };
-        delete next[provider]; // back to resting "view"
-        return next;
-      });
-      setKeyReveal((s) => ({ ...s, [provider]: false }));
-      setOpenKeyMenu(null);
-      setSuccess(`${PROVIDER_LABELS[provider]} API key saved.`);
-    } catch (e: any) {
-      setError(e?.message || String(e));
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  // Remove a stored key. The backend nils the matching client, so STT/TTS
-  // provider resolution falls back to whatever remains configured.
-  async function removeKey(provider: KeyProvider) {
-    setSaving(true);
-    setError("");
-    setSuccess("");
-    try {
-      await DeleteAPIKey(provider);
-      onAuthChange(await GetAuthStatus());
-      keySetters[provider]("");
-      setKeyUi((s) => {
-        const next = { ...s };
-        delete next[provider]; // back to resting "bare"
-        return next;
-      });
-      setOpenKeyMenu(null);
-      setSuccess(`${PROVIDER_LABELS[provider]} API key removed.`);
-    } catch (e: any) {
-      setError(e?.message || String(e));
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  // On-demand update check for the About section. Mirrors the launch-time banner
-  // but driven by the button; errors surface inline via the shared error line.
-  async function checkForUpdate() {
-    setChecking(true);
-    setError("");
-    setSuccess("");
-    try {
-      setUpdateInfo(await CheckForUpdate());
-      setCheckedOnce(true);
-    } catch (e: any) {
-      setError(e?.message || String(e));
-    } finally {
-      setChecking(false);
-    }
-  }
-
-  // Open the OS file manager with the SQLite database selected (Privacy section).
-  async function revealDatabase() {
-    setRevealing(true);
-    setError("");
-    setSuccess("");
-    try {
-      await RevealDatabaseFile();
-    } catch (e: any) {
-      setError(e?.message || String(e));
-    } finally {
-      setRevealing(false);
-    }
-  }
-
-  // Wipe every local record. Guarded by an exact "CONFIRM" match; on success we
-  // reload auth + prefs from the now-empty store so the whole UI reflects the
-  // reset without a restart. Theme lives in localStorage, so it's left intact.
-  async function clearAllData() {
-    if (clearConfirm !== "CONFIRM") return;
-    setClearing(true);
-    setError("");
-    setSuccess("");
-    try {
-      await ClearAllLocalData();
-      onAuthChange(await GetAuthStatus());
-      const p = await GetPreferences();
-      setPrefs(p);
-      setIntervalSec(String(Math.max(1, Math.round(p.captureIntervalMs / 1000))));
-      setLimitMinutes(String(p.sessionLimitMinutes ?? 30));
-      setWarningMinutes(String(p.softWarningMinutes ?? 25));
-      setVoiceSpeed(p.voiceSpeed || 1);
-      setTtsProvider(p.ttsProvider || "google");
-      onPrefsChange?.(p);
-      setClearOpen(false);
-      setClearConfirm("");
-      setSuccess("All local data cleared. The app is back to a first-run state.");
-    } catch (e: any) {
-      setError(e?.message || String(e));
-    } finally {
-      setClearing(false);
-    }
-  }
-
-  const activeProvider = resolveProvider(ttsProvider);
-  const anyVoiceConfigured = authStatus.googleConfigured || authStatus.elevenLabsConfigured;
-  const configured: Record<KeyProvider, boolean> = {
-    openrouter: authStatus.openRouterConfigured,
-    elevenlabs: authStatus.elevenLabsConfigured,
-    google: authStatus.googleConfigured,
-  };
-
-  // Session-timeline geometry (General): the accent fill runs 0 → warning with a
-  // gold marker at the warning point; the whole bar spans the limit. A limit of 0
-  // is untimed practice — no fill, no markers.
-  const limitNum = Math.max(0, Number(limitMinutes) || 0);
-  const warnNum = Math.max(0, Number(warningMinutes) || 0);
-  const hasWarn = limitNum > 0 && warnNum > 0 && warnNum < limitNum;
-  const warnPct = hasWarn ? (warnNum / limitNum) * 100 : 0;
-
-  // About identity build line, e.g. "macOS · local build" (GOOS + version).
-  const osLabel =
-    hkStatus?.goos === "darwin"
-      ? "macOS"
-      : hkStatus?.goos === "windows"
-        ? "Windows"
-        : hkStatus?.goos === "linux"
-          ? "Linux"
-          : "";
-  const buildLabel = `${osLabel ? osLabel + " · " : ""}${
-    appVersion && appVersion !== "dev" ? "release build" : "local build"
-  }`;
-
-  // Voice-hotkey footer state. Off → muted; on but (macOS) still awaiting Input
-  // Monitoring → warning with a shortcut to grant it; otherwise the hook is live.
-  const pttEnabled = !!prefs?.pushToTalkEnabled;
-  const needsInputMonitoring =
-    hkStatus?.goos === "darwin" && pttEnabled && !hkStatus.hookEnabled;
-  const hotkeyStatus: { tone: "off" | "active" | "warning"; text: string } = !pttEnabled
-    ? { tone: "off", text: "Voice hotkey is off" }
-    : needsInputMonitoring
-      ? { tone: "warning", text: "Needs Input Monitoring — enable Mogi, then relaunch" }
-      : { tone: "active", text: "Global hotkey is active" };
 
   return (
     <div className="settings-page">
@@ -721,879 +230,87 @@ export default function Settings({
             content floats as its own card(s) below it. */}
         <div className="settings-content">
           {section === "general" && (
-            <>
-              <header className="settings-head">
-                <h1>General</h1>
-                <p>Session behavior and appearance for your mock interviews.</p>
-              </header>
-              <div className="settings-card">
-                <div className="settings-card-head">
-                  <span className="material-symbols-outlined">contrast</span>
-                  <h3 className="settings-card-title">Appearance</h3>
-                </div>
-                <p className="settings-hint">
-                  Color theme for the app. “System” follows your OS light/dark setting.
-                </p>
-                <div className="appearance-grid">
-                  {THEME_TILES.map((t) => {
-                    const on = themePref === t.id;
-                    return (
-                      <button
-                        key={t.id}
-                        type="button"
-                        className={`theme-tile${on ? " is-selected" : ""}`}
-                        onClick={() => onThemeChange(t.id)}
-                      >
-                        <div className={`theme-prev${t.halves.length > 1 ? " is-split" : ""}`}>
-                          {t.halves.map((h, i) => (
-                            <div
-                              key={i}
-                              className="theme-prev-half"
-                              style={{ background: h.bg }}
-                            >
-                              <div
-                                className="theme-prev-card"
-                                style={{ background: h.surface, borderColor: h.border }}
-                              >
-                                <div className="theme-prev-status">
-                                  <span
-                                    className="theme-prev-dot"
-                                    style={{ background: h.secondary }}
-                                  />
-                                  <span style={{ color: h.muted }}>Ready</span>
-                                </div>
-                                <div className="theme-prev-title" style={{ color: h.ink }}>
-                                  Ready to begin?
-                                </div>
-                                <div
-                                  className="theme-prev-btn"
-                                  style={{ background: h.accent, color: h.onAccent }}
-                                >
-                                  Start session
-                                </div>
-                                <div className="theme-prev-pills">
-                                  <span
-                                    style={{ background: h.secondarySoft, color: h.secondary }}
-                                  >
-                                    Easy
-                                  </span>
-                                  <span style={{ background: h.accentSoft, color: h.accent }}>
-                                    Focus
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                        <div className="theme-tile-foot">
-                          <div>
-                            <div className="theme-tile-name">{t.name}</div>
-                            <div className="theme-tile-sub">{t.sub}</div>
-                          </div>
-                          {on && (
-                            <span className="material-symbols-outlined theme-tile-check">
-                              check_circle
-                            </span>
-                          )}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-              <div className="settings-card">
-                <div className="settings-card-head">
-                  <span className="material-symbols-outlined">schedule</span>
-                  <h3 className="settings-card-title">Session time limit</h3>
-                </div>
-                <p className="settings-hint">
-                  Set the limit to 0 for untimed practice. The warning fires N minutes
-                  before the limit; 0 disables it.
-                </p>
-
-                {/* Live timeline: reflects the current Limit/Warning inputs. */}
-                <div className="timeline">
-                  <div className="timeline-track">
-                    {limitNum > 0 ? (
-                      <>
-                        <div
-                          className="timeline-fill"
-                          style={{ width: `${hasWarn ? warnPct : 100}%` }}
-                        />
-                        {hasWarn && (
-                          <div className="timeline-marker" style={{ left: `${warnPct}%` }} />
-                        )}
-                      </>
-                    ) : (
-                      <div className="timeline-fill timeline-fill--untimed" />
-                    )}
-                  </div>
-                  <div className="timeline-labels">
-                    {limitNum > 0 ? (
-                      <>
-                        <span className="timeline-label">
-                          <strong>0m</strong> start
-                        </span>
-                        {hasWarn && (
-                          <span className="timeline-label timeline-label--warn">
-                            <span className="timeline-warn-dot" />
-                            Warning at <strong>{warnNum}m</strong>
-                          </span>
-                        )}
-                        <span className="timeline-label">
-                          <strong className="timeline-limit">{limitNum}m</strong> limit
-                        </span>
-                      </>
-                    ) : (
-                      <span className="timeline-label timeline-label--muted">
-                        Untimed practice — no limit or warning
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                <div className="settings-field-row">
-                  <div className="settings-field">
-                    <label className="settings-label">Limit (min)</label>
-                    <input
-                      type="number"
-                      min={0}
-                      className="settings-input"
-                      value={limitMinutes}
-                      onChange={(e) => setLimitMinutes(e.target.value)}
-                      disabled={saving || !prefs}
-                    />
-                  </div>
-                  <div className="settings-field">
-                    <label className="settings-label">Warning (min)</label>
-                    <input
-                      type="number"
-                      min={0}
-                      className="settings-input"
-                      value={warningMinutes}
-                      onChange={(e) => setWarningMinutes(e.target.value)}
-                      disabled={saving || !prefs}
-                    />
-                  </div>
-                  <button
-                    className="btn btn-primary settings-field-save"
-                    onClick={saveTimerSettings}
-                    disabled={saving || !prefs}
-                  >
-                    {saving ? "Saving…" : "Save"}
-                  </button>
-                </div>
-              </div>
-            </>
+            <GeneralSection
+              themePref={themePref}
+              onThemeChange={onThemeChange}
+              limitMinutes={limitMinutes}
+              setLimitMinutes={setLimitMinutes}
+              warningMinutes={warningMinutes}
+              setWarningMinutes={setWarningMinutes}
+              prefs={prefs}
+              saving={saving}
+              savePrefs={savePrefs}
+              setError={setError}
+            />
           )}
 
           {section === "models" && (
-            <>
-              <header className="settings-head">
-                <h1>Model Architecture</h1>
-              </header>
-              {/* Flush layout: the picker floats in its own card like every
-                  other section's content. */}
-              <div className="settings-card">
-                <ModelPicker currentModelId={prefs?.model ?? ""} onSelect={saveModel} />
-              </div>
-            </>
+            <ModelsSection prefs={prefs} savePrefs={savePrefs} />
           )}
 
           {section === "api-keys" && (
-            <>
-              <header className="settings-head">
-                <h1>API Keys</h1>
-                <p>Keys are stored locally and never leave this device except in API requests.</p>
-              </header>
-              {KEY_CARDS.map((card) => {
-                const isSet = configured[card.id];
-                // Resting mode follows configured status; keyUi overrides it while
-                // the user is replacing or confirming a remove.
-                const mode = keyUi[card.id] ?? (isSet ? "view" : "bare");
-                return (
-                  <div className="settings-card apikey-card" key={card.id}>
-                    <div className="apikey-head">
-                      <div className={`apikey-icon${isSet ? "" : " muted"}`}>
-                        <span className="material-symbols-outlined">{card.icon}</span>
-                      </div>
-                      <div className="apikey-meta">
-                        <div className="apikey-name">{PROVIDER_LABELS[card.id]}</div>
-                        <div className="apikey-sub">{card.hint}</div>
-                      </div>
-                      <div className={`apikey-status${isSet ? " is-configured" : ""}`}>
-                        <span className="apikey-status-dot" />
-                        {isSet ? "Configured" : "Not set"}
-                      </div>
-                    </div>
-
-                    {/* VIEW — a stored key, shown as a masked (non-revealable, the
-                        frontend never holds it) field with an overflow menu. */}
-                    {mode === "view" && (
-                      <div className="apikey-row">
-                        <div className="apikey-input-wrap apikey-input-wrap-static">
-                          <span className="material-symbols-outlined apikey-input-icon">key</span>
-                          <span className="apikey-masked">••••••••••••••••</span>
-                        </div>
-                        <div className="apikey-menu-wrap">
-                          <button
-                            type="button"
-                            className="apikey-menu-btn"
-                            title="More actions"
-                            aria-label="More actions"
-                            onClick={() =>
-                              setOpenKeyMenu(openKeyMenu === card.id ? null : card.id)
-                            }
-                            disabled={saving}
-                          >
-                            <span className="material-symbols-outlined">more_vert</span>
-                          </button>
-                          {openKeyMenu === card.id && (
-                            <>
-                              <div
-                                className="apikey-menu-overlay"
-                                onClick={() => setOpenKeyMenu(null)}
-                              />
-                              <div className="apikey-menu" role="menu">
-                                <button
-                                  type="button"
-                                  className="apikey-menu-item"
-                                  onClick={() => setKeyMode(card.id, "edit")}
-                                >
-                                  <span className="material-symbols-outlined">sync</span>
-                                  Replace key
-                                </button>
-                                <button
-                                  type="button"
-                                  className="apikey-menu-item apikey-menu-item-danger"
-                                  onClick={() => setKeyMode(card.id, "confirmRemove")}
-                                >
-                                  <span className="material-symbols-outlined">delete</span>
-                                  Remove key
-                                </button>
-                              </div>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* EDIT (replacing) / BARE (first time) — editable input + Save. */}
-                    {(mode === "edit" || mode === "bare") && (
-                      <div className="apikey-row">
-                        <div
-                          className={`apikey-input-wrap${mode === "edit" ? " is-editing" : ""}`}
-                        >
-                          <span className="material-symbols-outlined apikey-input-icon">key</span>
-                          <input
-                            type={keyReveal[card.id] ? "text" : "password"}
-                            className="apikey-input"
-                            value={keyInputs[card.id]}
-                            onChange={(e) => keySetters[card.id](e.target.value)}
-                            placeholder={card.placeholder}
-                            disabled={saving}
-                            autoFocus={mode === "edit"}
-                            onKeyDown={(e) => e.key === "Enter" && saveKey(card.id)}
-                          />
-                          <button
-                            type="button"
-                            className="apikey-input-eye"
-                            onClick={() =>
-                              setKeyReveal((s) => ({ ...s, [card.id]: !s[card.id] }))
-                            }
-                            title={keyReveal[card.id] ? "Hide key" : "Show key"}
-                            aria-label={keyReveal[card.id] ? "Hide key" : "Show key"}
-                            tabIndex={-1}
-                          >
-                            <span className="material-symbols-outlined">
-                              {keyReveal[card.id] ? "visibility_off" : "visibility"}
-                            </span>
-                          </button>
-                        </div>
-                        <button
-                          className="btn btn-primary settings-field-save"
-                          onClick={() => saveKey(card.id)}
-                          disabled={!keyInputs[card.id].trim() || saving}
-                        >
-                          {saving ? "Saving…" : "Save"}
-                        </button>
-                        {mode === "edit" && (
-                          <button
-                            type="button"
-                            className="apikey-icon-btn"
-                            title="Cancel"
-                            aria-label="Cancel"
-                            onClick={() => setKeyMode(card.id, null)}
-                            disabled={saving}
-                          >
-                            <span className="material-symbols-outlined">close</span>
-                          </button>
-                        )}
-                      </div>
-                    )}
-
-                    {/* CONFIRM REMOVE — a beat before the destructive action. */}
-                    {mode === "confirmRemove" && (
-                      <div className="apikey-confirm">
-                        <span className="apikey-confirm-text">
-                          Remove this key? You'll need to paste it again later.
-                        </span>
-                        <div className="apikey-confirm-actions">
-                          <button
-                            type="button"
-                            className="apikey-confirm-keep"
-                            onClick={() => setKeyMode(card.id, null)}
-                            disabled={saving}
-                          >
-                            Keep it
-                          </button>
-                          <button
-                            type="button"
-                            className="apikey-confirm-remove"
-                            onClick={() => removeKey(card.id)}
-                            disabled={saving}
-                          >
-                            {saving ? "Removing…" : "Remove"}
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </>
+            <ApiKeysSection
+              authStatus={authStatus}
+              onAuthChange={onAuthChange}
+              saving={saving}
+              setSaving={setSaving}
+              setError={setError}
+              setSuccess={setSuccess}
+            />
           )}
 
           {section === "voice" && (
-            <>
-              <header className="settings-head">
-                <h1>Voice Calibration</h1>
-                <p>Pick the provider and voice your interviewer speaks with.</p>
-              </header>
-              {anyVoiceConfigured ? (
-                // One merged panel: three numbered sections (Provider /
-                // Interviewer Voice / Speaking Speed) split by gradient dividers.
-                <div className="vc-panel">
-                  {/* 01 · PROVIDER — two selectable tiles. */}
-                  <div className="vc-section">
-                    <div className="vc-section-head">
-                      <span className="vc-section-label">01 · Provider</span>
-                      <span className="vc-section-note">Each provider remembers its own voice.</span>
-                    </div>
-                    <p className="vc-section-desc">
-                      Sets the spoken voice only. Mic transcription uses ElevenLabs if key is available, otherwise Google.
-                    </p>
-                    <div className="vc-provider-grid">
-                      {VOICE_PROVIDERS.map((p) => {
-                        const selected = activeProvider === p.id;
-                        const isConfigured =
-                          p.id === "google"
-                            ? authStatus.googleConfigured
-                            : authStatus.elevenLabsConfigured;
-                        const remembered =
-                          p.id === "google" ? prefs?.googleVoiceId : prefs?.voiceId;
-                        const rememberedLabel =
-                          (remembered && voiceNames[remembered]) || remembered || "Not set";
-                        return (
-                          <button
-                            key={p.id}
-                            type="button"
-                            className={`vc-provider${selected ? " is-selected" : ""}`}
-                            onClick={() => saveTTSProvider(p.id)}
-                            disabled={saving || !isConfigured}
-                            title={isConfigured ? "" : `Add a ${p.keyLabel} key first`}
-                          >
-                            <div className="vc-provider-top">
-                              <span className={`vc-provider-tag vc-provider-tag--${p.tone}`}>
-                                <span className="vc-provider-tag-dot" />
-                                {p.tag}
-                              </span>
-                              <span className="material-symbols-outlined vc-provider-check">
-                                {selected ? "check_circle" : "radio_button_unchecked"}
-                              </span>
-                            </div>
-                            <div className="vc-provider-name">{p.name}</div>
-                            <div className="vc-provider-voice">
-                              <span className="material-symbols-outlined">graphic_eq</span>
-                              {rememberedLabel}
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* 02 · INTERVIEWER VOICE — searchable list of the active provider's voices. */}
-                  <div className="vc-section">
-                    <div className="vc-section-head">
-                      <span className="vc-section-label">02 · Interviewer Voice</span>
-                      <span className="vc-section-note">
-                        {voiceCount != null ? `${voiceCount} voices available` : ""}
-                      </span>
-                    </div>
-                    <p className="vc-section-desc">
-                      Click a voice to select it, or the play button to hear a sample.
-                    </p>
-                    <VoicePicker
-                      provider={activeProvider}
-                      currentVoiceId={
-                        (activeProvider === "elevenlabs"
-                          ? prefs?.voiceId
-                          : prefs?.googleVoiceId) ?? ""
-                      }
-                      onSelect={saveVoice}
-                      speed={voiceSpeed}
-                      onCatalog={handleCatalog}
-                    />
-                  </div>
-
-                  {/* 03 · SPEAKING SPEED — custom track over a transparent range input. */}
-                  <div className="vc-section">
-                    <div className="vc-section-head">
-                      <span className="vc-section-label">03 · Speaking Speed</span>
-                      <button
-                        type="button"
-                        className="vc-reset-btn"
-                        onClick={() => {
-                          setVoiceSpeed(1);
-                          savePrefs({ voiceSpeed: 1 }, "Voice speed saved.");
-                        }}
-                        disabled={saving || !prefs || voiceSpeed === 1}
-                      >
-                        Reset
-                      </button>
-                    </div>
-                    <div className="vc-speed-row">
-                      <div className="vc-speed-track">
-                        <div
-                          className="vc-speed-fill"
-                          style={{ width: `${((voiceSpeed - 0.5) / 1.5) * 100}%` }}
-                        />
-                        <div
-                          className="vc-speed-thumb"
-                          style={{ left: `${((voiceSpeed - 0.5) / 1.5) * 100}%` }}
-                        />
-                        <input
-                          type="range"
-                          className="vc-speed-input"
-                          min={0.5}
-                          max={2}
-                          step={0.05}
-                          value={voiceSpeed}
-                          onChange={(e) => setVoiceSpeed(Number(e.target.value))}
-                          onPointerUp={saveVoiceSpeed}
-                          onKeyUp={saveVoiceSpeed}
-                          disabled={saving || !prefs}
-                        />
-                      </div>
-                      <div className="vc-speed-value">{voiceSpeed.toFixed(2)}×</div>
-                    </div>
-                    <div className="vc-speed-scale">
-                      <span>0.5× slower</span>
-                      <span>1.0× natural</span>
-                      <span>2.0× faster</span>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="settings-card settings-card-placeholder">
-                  <span className="material-symbols-outlined">record_voice_over</span>
-                  <h3 className="settings-card-title">Add a voice key first</h3>
-                  <p className="settings-hint">
-                    Spoken interviews need a Google Cloud or ElevenLabs API key. Add one under{" "}
-                    <button className="settings-link-btn" onClick={() => goTo("api-keys")}>
-                      API Keys
-                    </button>{" "}
-                    to choose a voice.
-                  </p>
-                </div>
-              )}
-            </>
+            <VoiceSection
+              authStatus={authStatus}
+              prefs={prefs}
+              saving={saving}
+              savePrefs={savePrefs}
+              ttsProvider={ttsProvider}
+              setTtsProvider={setTtsProvider}
+              voiceSpeed={voiceSpeed}
+              setVoiceSpeed={setVoiceSpeed}
+              voiceCount={voiceCount}
+              voiceNames={voiceNames}
+              onCatalog={handleCatalog}
+              onOpenApiKeys={() => goTo("api-keys")}
+            />
           )}
 
           {section === "push-to-talk" && (
-            <>
-              <header className="settings-head">
-                <h1>Voice Hotkey</h1>
-                <p>Press a hotkey to talk to the interviewer — even while your IDE is focused.</p>
-              </header>
-
-              {/* One consolidated card: enable toggle, key binding, footer status. */}
-              <div className="settings-card hotkey-card">
-                <div className="hotkey-head">
-                  <div className="hotkey-head-left">
-                    <span className="hotkey-icon">
-                      <span className="material-symbols-outlined">keyboard</span>
-                    </span>
-                    <div>
-                      <div className="hotkey-title">Enable voice hotkey</div>
-                      <div className="hotkey-subtitle">Toggle push-to-talk on or off</div>
-                    </div>
-                  </div>
-                  <div className="settings-segmented hotkey-toggle">
-                    <button
-                      type="button"
-                      className={`settings-segment${pttEnabled ? " active" : ""}`}
-                      onClick={() => savePTTEnabled(true)}
-                      disabled={saving || !prefs}
-                    >
-                      On
-                    </button>
-                    <button
-                      type="button"
-                      className={`settings-segment${prefs && !pttEnabled ? " active" : ""}`}
-                      onClick={() => savePTTEnabled(false)}
-                      disabled={saving || !prefs}
-                    >
-                      Off
-                    </button>
-                  </div>
-                </div>
-
-                <p className="settings-hint hotkey-desc">
-                  When on, press your hotkey to start recording and press it again to stop and
-                  send — same as the mic button. The key isn't captured exclusively, so it also
-                  reaches your editor; pick one your IDE ignores (a right-hand modifier or
-                  function key) if that's a problem.
-                </p>
-
-                <div className="hotkey-divider" />
-
-                <div className={`hotkey-bind${pttEnabled ? "" : " is-disabled"}`}>
-                  <div className="hotkey-bind-head">
-                    <span className="material-symbols-outlined">keyboard_command_key</span>
-                    <span className="hotkey-bind-label">Assigned key</span>
-                  </div>
-                  <p className="settings-hint">
-                    Click the key field, then press the key you want — tap once to start, again
-                    to stop. A single right-hand modifier like <strong>Right ⌥ Option</strong>{" "}
-                    works best: tapping it types nothing and avoids the macOS beep a combo like
-                    Ctrl+Space causes. Press Esc to cancel.
-                  </p>
-                  <div className="hotkey-bind-row">
-                    <button
-                      type="button"
-                      className={`hotkey-chip${capturing ? " is-capturing" : ""}`}
-                      onClick={() => setCapturing((c) => !c)}
-                      disabled={saving || !prefs}
-                    >
-                      {capturing ? (
-                        <span className="hotkey-chip-prompt">Press a key…</span>
-                      ) : (
-                        <span className="hotkey-keycaps">
-                          {hotkeyKeycaps(prefs?.pushToTalkKey || "RightAlt").map((cap, i) => (
-                            <span className="hotkey-keycap" key={i}>
-                              {cap}
-                            </span>
-                          ))}
-                        </span>
-                      )}
-                    </button>
-                    <button
-                      type="button"
-                      className="settings-link-btn"
-                      onClick={() => commitHotkey("RightAlt")}
-                      disabled={saving || !prefs}
-                    >
-                      Reset to default
-                    </button>
-                  </div>
-                </div>
-
-                <div className={`hotkey-status hotkey-status--${hotkeyStatus.tone}`}>
-                  <span className="hotkey-status-dot" />
-                  <span className="hotkey-status-text">{hotkeyStatus.text}</span>
-                  {hotkeyStatus.tone === "warning" && (
-                    <button
-                      type="button"
-                      className="hotkey-status-action"
-                      onClick={() => OpenInputMonitoringSettings()}
-                      disabled={saving}
-                    >
-                      Open settings
-                    </button>
-                  )}
-                </div>
-              </div>
-            </>
+            <PushToTalkSection
+              prefs={prefs}
+              saving={saving}
+              savePrefs={savePrefs}
+              hkStatus={hkStatus}
+              onRefreshHotkeyStatus={refreshHotkeyStatus}
+            />
           )}
 
           {section === "capture" && (
-            <>
-              <header className="settings-head">
-                <h1>Capture Prefs</h1>
-                <p>How often the interviewer sees a fresh view of your screen.</p>
-              </header>
-              <div className="settings-card">
-                <h3 className="settings-card-title">Capture interval</h3>
-                <p className="settings-hint">
-                  How often the app sends a fresh screenshot to the interviewer (seconds).
-                </p>
-                <div className="settings-field-row">
-                  <input
-                    type="number"
-                    min={1}
-                    className="settings-input settings-input-grow"
-                    value={intervalSec}
-                    onChange={(e) => setIntervalSec(e.target.value)}
-                    disabled={saving || !prefs}
-                    onKeyDown={(e) => e.key === "Enter" && saveInterval()}
-                  />
-                  <button
-                    className="btn btn-primary settings-field-save"
-                    onClick={saveInterval}
-                    disabled={saving || !prefs}
-                  >
-                    {saving ? "Saving…" : "Save"}
-                  </button>
-                </div>
-                <p className="settings-hint settings-hint-muted">
-                  Choose the display and crop region from the Hub before starting a session.
-                </p>
-              </div>
-            </>
+            <CaptureSection
+              intervalSec={intervalSec}
+              setIntervalSec={setIntervalSec}
+              prefs={prefs}
+              saving={saving}
+              savePrefs={savePrefs}
+            />
           )}
 
           {section === "privacy" && (
-            <>
-              <header className="settings-head">
-                <h1>Privacy</h1>
-                <p>Where your data lives, and what leaves this device.</p>
-              </header>
-
-              {/* Reassurance banner. */}
-              <div className="privacy-banner">
-                <span className="privacy-banner-icon">
-                  <span className="material-symbols-outlined">verified_user</span>
-                </span>
-                <div>
-                  <div className="privacy-banner-title">Everything stays on this device</div>
-                  <div className="privacy-banner-desc">
-                    Mogi has no account and no cloud of its own. Your data sits in a local
-                    SQLite database and only leaves for the provider requests you trigger.
-                  </div>
-                </div>
-              </div>
-
-              {/* Data map: one row per kind of data, badged by where it lives. */}
-              <div className="settings-card datamap">
-                <div className="datamap-head">Where your data lives</div>
-                {PRIVACY_ROWS.map((r, i) => (
-                  <div
-                    className={`datamap-row${i === PRIVACY_ROWS.length - 1 ? "" : " has-border"}`}
-                    key={r.name}
-                  >
-                    <span className="datamap-icon">
-                      <span className="material-symbols-outlined">{r.icon}</span>
-                    </span>
-                    <div className="datamap-meta">
-                      <div className="datamap-name">{r.name}</div>
-                      <div className="datamap-desc">{r.desc}</div>
-                    </div>
-                    <span className={`datamap-badge datamap-badge--${r.tone}`}>
-                      <span className="datamap-badge-dot" />
-                      {r.badge}
-                    </span>
-                  </div>
-                ))}
-              </div>
-
-              {/* Actions: reveal the DB file, or wipe everything (gated below). */}
-              <div className="privacy-actions">
-                <button
-                  className="btn btn-ghost btn-icon"
-                  onClick={revealDatabase}
-                  disabled={revealing}
-                >
-                  <span className="material-symbols-outlined">folder_open</span>
-                  {revealing ? "Revealing…" : "Reveal database file"}
-                </button>
-                <button
-                  type="button"
-                  className="privacy-danger-btn"
-                  onClick={() => {
-                    setClearOpen(true);
-                    setClearConfirm("");
-                    setError("");
-                    setSuccess("");
-                  }}
-                  disabled={clearing}
-                >
-                  <span className="material-symbols-outlined">delete_forever</span>
-                  Clear all local data
-                </button>
-              </div>
-
-              {/* Destructive confirm — a centered popup, still gated on typing CONFIRM.
-                  Scrim click dismisses (unless mid-wipe); the card stops propagation. */}
-              {clearOpen && (
-                <div
-                  className="privacy-modal-overlay"
-                  onClick={() => {
-                    if (clearing) return;
-                    setClearOpen(false);
-                    setClearConfirm("");
-                  }}
-                >
-                  <div className="privacy-modal" onClick={(e) => e.stopPropagation()}>
-                    <div className="privacy-modal-icon">
-                      <span className="material-symbols-outlined">delete_forever</span>
-                    </div>
-                    <h2 className="privacy-modal-title">Delete everything?</h2>
-                    <p className="privacy-modal-desc">
-                      Your settings, API keys, and interview history will be permanently
-                      removed from this device. This cannot be undone.
-                    </p>
-                    <input
-                      className={`settings-input privacy-modal-input${
-                        clearConfirm === "CONFIRM" ? " privacy-modal-input--valid" : ""
-                      }`}
-                      value={clearConfirm}
-                      onChange={(e) => setClearConfirm(e.target.value)}
-                      placeholder="Type CONFIRM"
-                      autoFocus
-                      spellCheck={false}
-                      autoCapitalize="characters"
-                      disabled={clearing}
-                      onKeyDown={(e) => e.key === "Enter" && clearAllData()}
-                    />
-                    <button
-                      type="button"
-                      className="privacy-modal-go"
-                      onClick={clearAllData}
-                      disabled={clearConfirm !== "CONFIRM" || clearing}
-                    >
-                      <span className="material-symbols-outlined">delete_forever</span>
-                      {clearing ? "Clearing…" : "Clear everything"}
-                    </button>
-                    <button
-                      type="button"
-                      className="privacy-modal-cancel"
-                      onClick={() => {
-                        setClearOpen(false);
-                        setClearConfirm("");
-                      }}
-                      disabled={clearing}
-                    >
-                      Keep my data
-                    </button>
-                  </div>
-                </div>
-              )}
-            </>
+            <PrivacySection
+              setError={setError}
+              setSuccess={setSuccess}
+              onDataCleared={handleDataCleared}
+            />
           )}
 
           {section === "about" && (
-            <>
-              <header className="settings-head">
-                <h1>About</h1>
-                <p>Version, updates, and project links.</p>
-              </header>
-
-              {/* Identity block. */}
-              <div className="about-identity">
-                <span className="about-logo">模擬</span>
-                <div className="about-identity-meta">
-                  <div className="about-name">Mogi</div>
-                  <div className="about-tagline">
-                    Realtime mock-interview copilot for your desktop.
-                  </div>
-                </div>
-                <div className="about-identity-side">
-                  <span className="about-version-pill">
-                    <span className="about-version-dot" />
-                    Version {appVersion || "dev"}
-                  </span>
-                  <span className="about-build">{buildLabel}</span>
-                </div>
-              </div>
-
-              {/* Software updates. */}
-              <div className="settings-card">
-                <div className="settings-card-head">
-                  <span className="material-symbols-outlined">system_update_alt</span>
-                  <h3 className="settings-card-title">Software updates</h3>
-                </div>
-                <p className="settings-hint">
-                  Releases are published on GitHub. The app is unsigned, so updating means
-                  downloading the new build and replacing the app.
-                </p>
-                <div className="about-update-row">
-                  <button
-                    className="btn btn-primary btn-icon"
-                    onClick={checkForUpdate}
-                    disabled={checking}
-                  >
-                    <span className="material-symbols-outlined">refresh</span>
-                    {checking ? "Checking…" : "Check for updates"}
-                  </button>
-                  {updateInfo?.available && (
-                    <button
-                      className="btn btn-ghost btn-icon"
-                      onClick={() =>
-                        OpenReleasePage(updateInfo.downloadUrl || updateInfo.releaseUrl)
-                      }
-                    >
-                      <span className="material-symbols-outlined">download</span>
-                      Download {updateInfo.latestVersion}
-                    </button>
-                  )}
-                  {checkedOnce && !checking && (
-                    updateInfo?.available ? (
-                      <span className="about-update-status about-update-status--new">
-                        <span className="about-update-dot" />
-                        {updateInfo.latestVersion} available — you have{" "}
-                        {updateInfo.currentVersion}
-                      </span>
-                    ) : updateInfo?.latestVersion ? (
-                      <span className="about-update-status about-update-status--ok">
-                        <span className="about-update-dot" />
-                        Up to date — you’re on the latest
-                      </span>
-                    ) : (
-                      <span className="about-update-status about-update-status--muted">
-                        No published releases to compare against yet
-                      </span>
-                    )
-                  )}
-                </div>
-                <div className="about-tip">
-                  <span className="material-symbols-outlined">lightbulb</span>
-                  <div>
-                    First launch after replacing may be blocked by macOS. Right-click the app
-                    → <strong>Open</strong>, or run <code>xattr -cr</code> on it once.
-                  </div>
-                </div>
-              </div>
-
-              {/* Project links. */}
-              <div className="about-links-wrap">
-                <div className="about-links-label">Project</div>
-                <div className="about-links">
-                  {ABOUT_LINKS.map((l) => (
-                    <button
-                      type="button"
-                      className="about-link"
-                      key={l.name}
-                      onClick={() => OpenURL(l.href)}
-                    >
-                      <div className="about-link-top">
-                        <span className="about-link-icon">
-                          <span className="material-symbols-outlined">{l.icon}</span>
-                        </span>
-                        <span className="material-symbols-outlined about-link-arrow">
-                          north_east
-                        </span>
-                      </div>
-                      <div>
-                        <div className="about-link-name">{l.name}</div>
-                        <div className="about-link-sub">{l.sub}</div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </>
+            <AboutSection
+              appVersion={appVersion}
+              goos={hkStatus?.goos}
+              setError={setError}
+              setSuccess={setSuccess}
+            />
           )}
 
           {error && <p className="settings-error">{error}</p>}

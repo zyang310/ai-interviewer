@@ -1,0 +1,245 @@
+/* ── About → identity block ──────────────────────────────────────────────── */
+.about-identity {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+  border-radius: 16px;
+  padding: 24px 28px;
+  background: var(--surface-bright);
+  border: 1px solid var(--level-1-border);
+  box-shadow: 0 14px 32px -18px rgba(0, 0, 0, 0.4);
+}
+
+:root[data-theme="dark"] .about-identity {
+  background: var(--surface-container);
+}
+
+.about-logo {
+  flex-shrink: 0;
+  width: 66px;
+  height: 66px;
+  border-radius: 16px;
+  background: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 27px;
+  letter-spacing: 0.05em;
+  color: var(--on-primary);
+}
+
+.about-identity-meta {
+  flex: 1;
+  min-width: 160px;
+}
+
+.about-name {
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--on-surface);
+  line-height: 1;
+}
+
+.about-tagline {
+  font-size: 15px;
+  color: var(--on-surface-variant);
+  margin-top: 6px;
+}
+
+.about-identity-side {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 7px;
+}
+
+.about-version-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--secondary) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--secondary) 28%, transparent);
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--secondary);
+}
+
+.about-version-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--secondary);
+}
+
+.about-build {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--outline);
+}
+
+/* ── About → software updates ────────────────────────────────────────────── */
+.about-update-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
+.about-update-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.about-update-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.about-update-status--ok {
+  color: var(--secondary);
+}
+.about-update-status--ok .about-update-dot {
+  background: var(--secondary);
+}
+
+.about-update-status--new {
+  color: var(--primary);
+}
+.about-update-status--new .about-update-dot {
+  background: var(--primary);
+}
+
+.about-update-status--muted {
+  color: var(--outline);
+}
+.about-update-status--muted .about-update-dot {
+  background: var(--outline);
+}
+
+.about-tip {
+  display: flex;
+  gap: 11px;
+  padding: 14px 16px;
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--warning) 9%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warning) 28%, transparent);
+}
+
+.about-tip .material-symbols-outlined {
+  font-size: 20px;
+  color: var(--warning);
+  flex-shrink: 0;
+}
+
+.about-tip div {
+  font-size: 13px;
+  color: var(--on-surface-variant);
+  line-height: 1.6;
+}
+
+.about-tip code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: color-mix(in srgb, var(--on-surface) 8%, transparent);
+  padding: 1px 6px;
+  border-radius: 5px;
+}
+
+/* ── About → project links ───────────────────────────────────────────────── */
+.about-links-label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--outline);
+  margin-bottom: 12px;
+  padding-left: 2px;
+}
+
+.about-links {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+
+.about-link {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px;
+  border-radius: 14px;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  background: var(--surface-bright);
+  border: 1px solid var(--level-1-border);
+  box-shadow: 0 6px 18px -14px rgba(0, 0, 0, 0.35);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+:root[data-theme="dark"] .about-link {
+  background: var(--surface-container);
+}
+
+.about-link:hover {
+  border-color: var(--primary);
+  box-shadow: 0 12px 26px -16px rgba(0, 0, 0, 0.45);
+}
+
+.about-link-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.about-link-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--primary) 9%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.about-link-icon .material-symbols-outlined {
+  font-size: 21px;
+  color: var(--primary);
+}
+
+.about-link-arrow {
+  font-size: 18px;
+  color: var(--outline);
+}
+
+.about-link-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--on-surface);
+  line-height: 1.25;
+}
+
+.about-link-sub {
+  font-size: 12.5px;
+  color: var(--on-surface-variant);
+  margin-top: 3px;
+}
+
+/* Narrow content pane: collapse the links grid to one column. */
+@media (max-width: 620px) {
+  .about-links {
+    grid-template-columns: 1fr;
+  }
+}

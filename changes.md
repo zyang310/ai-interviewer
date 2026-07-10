@@ -15,4 +15,3 @@ ui change:
 
     2. Make Nav pill bar more responsive and cooler to use
 
-    3. refactor settings/settinsg.tsx, right now 1.7k lines is too much ( Use fable to plan )

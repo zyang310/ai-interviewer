@@ -1,0 +1,226 @@
+/* ── Voice Hotkey — single consolidated card ─────────────────────────────────
+   One card holds the enable toggle, the key binding, and a footer status strip
+   (replacing the old three-card stack). Sections own their padding, so the card
+   itself is padding-free and clips the footer strip to its rounded corners. */
+.hotkey-card {
+  padding: 0;
+  overflow: hidden;
+}
+
+.hotkey-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 22px 24px 18px;
+}
+
+.hotkey-head-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+/* Tinted glyph tile (larger sibling of .apikey-icon). */
+.hotkey-icon {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hotkey-icon .material-symbols-outlined {
+  font-size: 22px;
+  color: var(--primary);
+}
+
+.hotkey-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--on-surface);
+  line-height: 1.2;
+}
+
+.hotkey-subtitle {
+  font-size: 13px;
+  color: var(--on-surface-variant);
+  margin-top: 2px;
+}
+
+/* Compact On/Off toggle — reuse .settings-segmented but size to content. */
+.hotkey-toggle {
+  flex: none;
+}
+
+.hotkey-toggle .settings-segment {
+  flex: none;
+  padding: 7px 22px;
+}
+
+.hotkey-desc {
+  padding: 0 24px 20px;
+  margin: 0;
+  max-width: 760px;
+}
+
+.hotkey-divider {
+  height: 1px;
+  background: var(--outline-variant);
+  margin: 0 24px;
+}
+
+/* Key-binding block — dims and goes inert when the hotkey is off. */
+.hotkey-bind {
+  padding: 20px 24px 24px;
+  transition: opacity 0.15s;
+}
+
+.hotkey-bind.is-disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.hotkey-bind-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.hotkey-bind-head .material-symbols-outlined {
+  font-size: 20px;
+  color: var(--primary);
+}
+
+.hotkey-bind-label {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--on-surface);
+}
+
+.hotkey-bind-row {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-top: 4px;
+}
+
+/* Key field — click to capture; a wide chip holding the keycaps. */
+.hotkey-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 150px;
+  height: 46px;
+  padding: 0 16px;
+  border-radius: 11px;
+  background: var(--surface-container-lowest);
+  border: 1.5px solid var(--outline-variant);
+  cursor: pointer;
+  font: inherit;
+  transition: border-color 0.12s, background-color 0.12s;
+}
+
+.hotkey-chip:hover:not(:disabled) {
+  border-color: var(--outline);
+}
+
+.hotkey-chip.is-capturing {
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 6%, transparent);
+}
+
+.hotkey-chip:disabled {
+  cursor: not-allowed;
+}
+
+.hotkey-chip-prompt {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--primary);
+}
+
+.hotkey-keycaps {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Physical "keycap" — a key with a bottom edge shadow for depth. */
+.hotkey-keycap {
+  min-width: 28px;
+  height: 28px;
+  padding: 0 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 7px;
+  background: var(--surface-container-lowest);
+  border: 1px solid var(--outline-variant);
+  box-shadow: 0 2px 0 0 var(--outline-variant);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--on-surface);
+}
+
+/* Footer status strip — tinted per state, clipped to the card's radius. */
+.hotkey-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 24px;
+  border-top: 1px solid var(--outline-variant);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.hotkey-status-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.hotkey-status--active {
+  background: color-mix(in srgb, var(--secondary) 10%, transparent);
+  color: var(--secondary);
+}
+.hotkey-status--active .hotkey-status-dot {
+  background: var(--secondary);
+}
+
+.hotkey-status--off {
+  background: color-mix(in srgb, var(--on-surface-variant) 6%, transparent);
+  color: var(--on-surface-variant);
+}
+.hotkey-status--off .hotkey-status-dot {
+  background: var(--outline);
+}
+
+.hotkey-status--warning {
+  background: color-mix(in srgb, var(--warning) 12%, transparent);
+  color: var(--warning);
+}
+.hotkey-status--warning .hotkey-status-dot {
+  background: var(--warning);
+}
+
+.hotkey-status-action {
+  margin-left: auto;
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+

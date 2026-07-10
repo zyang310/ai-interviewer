@@ -1,0 +1,271 @@
+
+/* ── Voice Calibration — content card ────────────────────────────────────────
+   The three numbered sections (Provider / Interviewer Voice / Speaking Speed)
+   live in one card that floats on the page background below the (now-flush)
+   header. No section dividers — spacing alone separates them. Mirrors the
+   .settings-card surface: soft-paper in light, container fill in dark. */
+.vc-panel {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-bright);
+  border: 1px solid var(--level-1-border);
+  border-radius: 16px;
+  box-shadow: 0 14px 32px -18px rgba(0, 0, 0, 0.4);
+  padding: 14px 26px;
+}
+
+:root[data-theme="dark"] .vc-panel {
+  background: var(--surface-container);
+}
+
+.vc-section {
+  padding: 22px 0;
+}
+
+.vc-section:first-child {
+  padding-top: 6px;
+}
+
+.vc-section:last-child {
+  padding-bottom: 6px;
+}
+
+.vc-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 6px;
+}
+
+/* Numbered step label — "01 · Provider". */
+.vc-section-label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--outline);
+}
+
+.vc-section-note {
+  font-size: 13px;
+  color: var(--outline);
+}
+
+.vc-section-desc {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--on-surface-variant);
+  max-width: 600px;
+  margin: 0 0 16px;
+}
+
+/* Reset link in the Speaking Speed header. */
+.vc-reset-btn {
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: var(--primary);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.vc-reset-btn:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+.vc-reset-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* ── Provider tiles ──────────────────────────────────────────────────────── */
+.vc-provider-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.vc-provider {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  padding: 18px 20px;
+  border-radius: 14px;
+  cursor: pointer;
+  font-family: var(--font-body);
+  background: var(--surface-container-lowest);
+  border: 1.5px solid var(--outline-variant);
+  transition: border-color 0.15s, background-color 0.15s, box-shadow 0.15s;
+}
+
+.vc-provider:hover:not(:disabled):not(.is-selected) {
+  border-color: var(--outline);
+}
+
+.vc-provider.is-selected {
+  background: color-mix(in srgb, var(--primary) 9%, transparent);
+  border-color: var(--primary);
+}
+
+.vc-provider:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.vc-provider-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+}
+
+/* Cost pill — dot inherits the pill's text color. */
+.vc-provider-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 11px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.vc-provider-tag-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.vc-provider-tag--low {
+  color: var(--secondary);
+  background: color-mix(in srgb, var(--secondary) 14%, transparent);
+}
+
+.vc-provider-tag--premium {
+  color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 16%, transparent);
+}
+
+.vc-provider-check {
+  font-size: 22px;
+  color: var(--outline-variant);
+}
+
+.vc-provider.is-selected .vc-provider-check {
+  color: var(--primary);
+  font-variation-settings: "FILL" 1;
+}
+
+.vc-provider-name {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--on-surface);
+  margin-top: 14px;
+}
+
+/* Remembered voice for this provider, in mono. */
+.vc-provider-voice {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 7px;
+  max-width: 100%;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--outline);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.vc-provider-voice .material-symbols-outlined {
+  font-size: 15px;
+  flex-shrink: 0;
+}
+
+/* ── Speaking speed — custom track over a transparent range input ────────── */
+.vc-speed-row {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.vc-speed-track {
+  flex: 1;
+  position: relative;
+  height: 6px;
+  border-radius: 6px;
+  background: var(--surface-container-lowest);
+  border: 1px solid var(--outline-variant);
+}
+
+.vc-speed-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: 6px;
+  background: linear-gradient(
+    90deg,
+    var(--primary),
+    color-mix(in srgb, var(--primary) 55%, white)
+  );
+}
+
+.vc-speed-thumb {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--surface-bright);
+  border: 3px solid var(--primary);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.4);
+  pointer-events: none;
+}
+
+/* Full-width invisible input drives the value; the visuals above track it. */
+.vc-speed-input {
+  position: absolute;
+  inset: -8px 0;
+  width: 100%;
+  height: 22px;
+  opacity: 0;
+  cursor: pointer;
+  margin: 0;
+}
+
+.vc-speed-input:disabled {
+  cursor: default;
+}
+
+.vc-speed-value {
+  flex-shrink: 0;
+  min-width: 78px;
+  text-align: center;
+  padding: 8px 14px;
+  border-radius: 10px;
+  background: var(--surface-container-lowest);
+  border: 1px solid var(--outline-variant);
+  font-family: var(--font-mono);
+  font-size: 16px;
+  color: var(--on-surface);
+}
+
+.vc-speed-scale {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 9px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--outline);
+}

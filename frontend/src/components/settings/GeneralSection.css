@@ -1,0 +1,262 @@
+/* ── General → Appearance theme tiles ────────────────────────────────────────
+   Three tappable previews replace the old segmented control. Each tile frames a
+   miniature "Ready" card painted in that theme's own hardcoded palette (inline
+   styles from THEME_TILES), so a light preview stays light even while the app is
+   dark. Only the tile chrome uses MD3 tokens. */
+.appearance-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+
+.theme-tile {
+  display: flex;
+  flex-direction: column;
+  border-radius: 14px;
+  overflow: hidden;
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+  background: var(--surface-container-lowest);
+  border: 2px solid var(--outline-variant);
+  font-family: inherit;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+:root[data-theme="dark"] .theme-tile {
+  background: var(--surface-container-high);
+}
+
+.theme-tile:hover:not(.is-selected) {
+  border-color: var(--outline);
+}
+
+.theme-tile.is-selected {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 12%, transparent);
+}
+
+/* Mini app-preview strip — one half per palette (System shows light | dark). */
+.theme-prev {
+  display: flex;
+  height: 150px;
+  overflow: hidden;
+}
+
+.theme-prev-half {
+  flex: 1;
+  min-width: 0;
+  padding: 13px;
+  display: flex;
+  align-items: center;
+}
+
+.theme-prev-card {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid;
+  border-radius: 9px;
+  padding: 11px 12px;
+  box-shadow: 0 4px 12px -8px rgba(0, 0, 0, 0.4);
+}
+
+.theme-prev-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 7px;
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.theme-prev-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.theme-prev-title {
+  font-family: var(--font-display);
+  font-size: 13px;
+  margin-bottom: 9px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.theme-prev-btn {
+  height: 24px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9.5px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.theme-prev-pills {
+  display: flex;
+  gap: 4px;
+}
+
+.theme-prev-pills span {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 8px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* Split (System) preview packs two mini-cards into one tile, so each half is
+   far narrower than the single-preview Light/Dark tiles. Compact the contents
+   just here so nothing overflows (the button no longer clips mid-word). */
+.theme-prev.is-split .theme-prev-half {
+  padding: 9px;
+}
+
+.theme-prev.is-split .theme-prev-card {
+  padding: 9px 9px;
+}
+
+.theme-prev.is-split .theme-prev-status {
+  font-size: 7.5px;
+  margin-bottom: 6px;
+}
+
+.theme-prev.is-split .theme-prev-title {
+  font-size: 10.5px;
+  margin-bottom: 7px;
+}
+
+.theme-prev.is-split .theme-prev-btn {
+  height: 20px;
+  font-size: 8px;
+  margin-bottom: 7px;
+}
+
+.theme-prev.is-split .theme-prev-pills span {
+  font-size: 7px;
+  padding: 2px 6px;
+}
+
+.theme-tile-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 30px;
+  padding: 12px 14px;
+}
+
+.theme-tile-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--on-surface);
+  line-height: 1.2;
+}
+
+.theme-tile-sub {
+  font-size: 12.5px;
+  color: var(--outline);
+  margin-top: 2px;
+}
+
+.theme-tile-check {
+  font-size: 22px;
+  color: var(--primary);
+  font-variation-settings: "FILL" 1;
+}
+
+/* ── General → Session timeline ──────────────────────────────────────────────
+   A bar spanning the limit; the accent fill runs 0 → warning with a gold marker
+   at the warning point. Reflects the live Limit/Warning inputs below it. */
+.timeline {
+  margin-bottom: 24px;
+}
+
+.timeline-track {
+  position: relative;
+  height: 12px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--primary) 9%, transparent);
+}
+
+.timeline-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: 999px;
+  background: var(--primary);
+}
+
+.timeline-fill--untimed {
+  width: 100%;
+  background: color-mix(in srgb, var(--outline) 40%, transparent);
+}
+
+.timeline-marker {
+  position: absolute;
+  top: -6px;
+  width: 3px;
+  height: 24px;
+  border-radius: 2px;
+  background: var(--warning);
+  transform: translateX(-50%);
+}
+
+.timeline-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 14px;
+  font-size: 13px;
+  color: var(--on-surface-variant);
+}
+
+.timeline-label strong {
+  color: var(--on-surface-variant);
+  font-weight: 700;
+}
+
+.timeline-label .timeline-limit {
+  color: var(--on-surface);
+}
+
+.timeline-label--warn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: color-mix(in srgb, var(--warning) 72%, #000);
+}
+
+.timeline-label--warn strong {
+  color: inherit;
+}
+
+:root[data-theme="dark"] .timeline-label--warn {
+  color: var(--warning);
+}
+
+.timeline-warn-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--warning);
+}
+
+.timeline-label--muted {
+  color: var(--outline);
+}
+
+/* Narrow content pane: collapse the theme-tile grid to one column. */
+@media (max-width: 620px) {
+  .appearance-grid {
+    grid-template-columns: 1fr;
+  }
+}

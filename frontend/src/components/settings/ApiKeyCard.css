@@ -1,0 +1,346 @@
+/* ── API key cards ───────────────────────────────────────────────────────────
+   Redesigned provider cards: an icon tile + name/link, a status pill, then a
+   key-icon input with Save and (when configured) an outlined danger Remove. */
+.apikey-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  /* Tighter than the default 24px card padding so the provider rows read compact. */
+  padding: 16px 18px;
+  /* Shadow inherited from .settings-card so every section's cards match. */
+}
+
+.apikey-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Rounded icon tile — primary glyph when configured, muted when not set. */
+.apikey-icon {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: var(--surface-container-high);
+  border: 1px solid var(--outline-variant);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.apikey-icon .material-symbols-outlined {
+  font-size: 19px;
+  color: var(--primary);
+  font-variation-settings: "FILL" 1;
+}
+
+.apikey-icon.muted .material-symbols-outlined {
+  color: var(--on-surface-variant);
+}
+
+.apikey-meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.apikey-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--on-surface);
+  line-height: 1.2;
+}
+
+.apikey-sub {
+  font-size: 12px;
+  color: var(--on-surface-variant);
+  line-height: 1.4;
+  margin-top: 2px;
+}
+
+.apikey-sub a {
+  color: var(--primary);
+  text-decoration: none;
+}
+
+.apikey-sub a:hover {
+  text-decoration: underline;
+}
+
+/* Status pill — muted by default, green (secondary) when the key is present. */
+.apikey-status {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: var(--on-surface-variant);
+  background: color-mix(in srgb, var(--on-surface-variant) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--on-surface-variant) 30%, transparent);
+}
+
+.apikey-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--on-surface-variant);
+}
+
+.apikey-status.is-configured {
+  color: var(--secondary);
+  background: color-mix(in srgb, var(--secondary) 14%, transparent);
+  border-color: color-mix(in srgb, var(--secondary) 35%, transparent);
+}
+
+.apikey-status.is-configured .apikey-status-dot {
+  background: var(--secondary);
+}
+
+/* Action row: the mode-dependent controls under the head (input+Save, masked
+   field+menu, or the confirm strip). */
+.apikey-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.apikey-input-wrap {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  background: var(--surface-container-lowest);
+  border: 1px solid var(--outline-variant);
+  border-radius: 8px;
+}
+
+.apikey-input-wrap:focus-within,
+.apikey-input-wrap.is-editing {
+  border-color: var(--primary);
+}
+
+/* View mode shows a masked, non-interactive stand-in for the stored key. */
+.apikey-masked {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 0;
+  font-family: var(--font-mono);
+  font-size: 15px;
+  letter-spacing: 0.15em;
+  line-height: 1;
+  color: var(--outline);
+  user-select: none;
+  overflow: hidden;
+}
+
+.apikey-input-icon {
+  font-size: 16px;
+  color: var(--on-surface-variant);
+}
+
+.apikey-input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: 0;
+  padding: 10px 0;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  font-size: 13px;
+  color: var(--on-surface);
+  outline: none;
+}
+
+.apikey-input::placeholder {
+  font-family: var(--font-body);
+  color: var(--outline);
+}
+
+/* Reveal toggle inside the entry field — shows/hides the key you're pasting.
+   (View mode has no eye: the stored key never reaches the frontend.) */
+.apikey-input-eye {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  margin-right: -4px;
+  border: none;
+  background: transparent;
+  color: var(--on-surface-variant);
+  cursor: pointer;
+}
+
+.apikey-input-eye:hover {
+  color: var(--on-surface);
+}
+
+.apikey-input-eye .material-symbols-outlined {
+  font-size: 17px;
+}
+
+/* Square icon button — cancel (edit) / more (view). Matches the input height. */
+.apikey-icon-btn,
+.apikey-menu-btn {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  border: 1px solid var(--outline-variant);
+  background: transparent;
+  color: var(--on-surface-variant);
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s;
+}
+
+.apikey-icon-btn:hover:not(:disabled),
+.apikey-menu-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--on-surface) 6%, transparent);
+  color: var(--on-surface);
+}
+
+.apikey-icon-btn:disabled,
+.apikey-menu-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.apikey-icon-btn .material-symbols-outlined,
+.apikey-menu-btn .material-symbols-outlined {
+  font-size: 19px;
+}
+
+/* Overflow menu (Replace / Remove) — replaces the always-on Save+Remove pair. */
+.apikey-menu-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+/* Full-screen catcher so any outside click closes the menu. */
+.apikey-menu-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+}
+
+.apikey-menu {
+  position: absolute;
+  z-index: 50;
+  top: calc(100% + 6px);
+  right: 0;
+  width: 172px;
+  padding: 6px;
+  border-radius: 10px;
+  background: var(--surface-bright);
+  border: 1px solid var(--level-1-border);
+  box-shadow: 0 16px 36px -12px rgba(0, 0, 0, 0.35);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+:root[data-theme="dark"] .apikey-menu {
+  background: var(--surface-container-high);
+}
+
+.apikey-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 9px 10px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--on-surface);
+  font-family: var(--font-body);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.12s;
+}
+
+.apikey-menu-item:hover {
+  background: color-mix(in srgb, var(--on-surface) 6%, transparent);
+}
+
+.apikey-menu-item .material-symbols-outlined {
+  font-size: 17px;
+  color: var(--on-surface-variant);
+}
+
+.apikey-menu-item-danger {
+  color: var(--error);
+}
+
+.apikey-menu-item-danger .material-symbols-outlined {
+  color: var(--error);
+}
+
+/* Confirm-remove strip — a deliberate beat before the destructive action. */
+.apikey-confirm {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 14px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--error) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--error) 28%, transparent);
+}
+
+.apikey-confirm-text {
+  font-size: 13px;
+  color: var(--on-surface);
+}
+
+.apikey-confirm-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.apikey-confirm-keep,
+.apikey-confirm-remove {
+  padding: 7px 14px;
+  border-radius: 7px;
+  font-family: var(--font-body);
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.apikey-confirm-keep {
+  border: 1px solid var(--outline-variant);
+  background: transparent;
+  color: var(--on-surface);
+}
+
+.apikey-confirm-keep:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--on-surface) 6%, transparent);
+}
+
+.apikey-confirm-remove {
+  border: none;
+  background: var(--error);
+  color: var(--surface-container-lowest);
+}
+
+.apikey-confirm-remove:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--error) 88%, black);
+}
+
+.apikey-confirm-keep:disabled,
+.apikey-confirm-remove:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

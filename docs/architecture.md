@@ -61,7 +61,7 @@ frontend/src/
    ├─ hub/        HubReady                                        — "Hub" tab (idle landing / start)
    ├─ company/    CompanyPractice · CompanyBanner                 — "Companies" tab
    ├─ history/    History · SessionHistoryCard · Debrief · RadarChart   — "History" tab
-   ├─ settings/   Settings · ModelPicker · VoicePicker            — "Settings" tab
+   ├─ settings/   Settings (shell) · 8 ✕ *Section · ApiKeyCard · ModelPicker · VoicePicker — "Settings" tab
    ├─ session/    Chat · CapturePanel · Overlay · RegionSelector  — live interview (capture + chat + overlay)
    ├─ setup/      SetupPage                                       — first-run onboarding
    └─ common/     MessageBubble · WindowControls · UpdateBanner   — shared UI + app shell
