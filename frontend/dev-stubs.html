@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>Mogi (stubbed preview)</title>
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem('mogi-theme');
+          var eff = stored || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+          document.documentElement.setAttribute('data-theme', eff);
+        } catch (e) {
+          document.documentElement.setAttribute('data-theme', 'light');
+        }
+      })();
+    </script>
+    <script>
+      (function () {
+        var overrides = {
+          GetAuthStatus: function () {
+            return Promise.resolve({ openRouterConfigured: true, elevenLabsConfigured: true, googleConfigured: true });
+          },
+          GetPreferences: function () {
+            return Promise.resolve({
+              model: "google/gemini-2.5-flash", captureIntervalMs: 3000,
+              sessionLimitMinutes: 30, softWarningMinutes: 25, voiceSpeed: 1,
+              ttsProvider: "google", voiceId: "stub-eleven-voice",
+              googleVoiceId: "en-US-Chirp3-HD-Puck", pushToTalkEnabled: true, pushToTalkKey: "RightAlt",
+            });
+          },
+          GetAppVersion: function () { return Promise.resolve("dev"); },
+          GetHotkeyStatus: function () { return Promise.resolve({ goos: "darwin", hookEnabled: true }); },
+          ListDisplays: function () { return Promise.resolve([{ index: 0, name: "Display 1", width: 1920, height: 1080, x: 0, y: 0 }]); },
+        };
+        window.go = { main: { App: new Proxy({}, { get: function (_t, name) {
+          return overrides[name] || function () { return Promise.resolve(null); };
+        } }) } };
+        window.runtime = new Proxy({}, { get: function () { return function () { return function () {}; }; } });
+      })();
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400;500&family=Shippori+Mincho:wght@500;600;700&display=swap" rel="stylesheet"/>
+</head>
+<body>
+<div id="root"></div>
+<script src="./src/main.tsx" type="module"></script>
+</body>
+</html>

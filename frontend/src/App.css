@@ -44,8 +44,14 @@
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--level-2-border);
   box-shadow: 0 10px 30px -16px rgba(0, 0, 0, 0.35);
+  /* Tint of the per-tab hover lift shadow: warm (washi) in light, black in dark. */
+  --pill-lift-shadow: rgba(60, 50, 30, 0.25);
   /* Don't let the nav initiate a window drag */
   --wails-draggable: no-drag;
+}
+
+:root[data-theme="dark"] .pill-nav {
+  --pill-lift-shadow: rgba(0, 0, 0, 0.25);
 }
 
 /* Divider + icon-only theme toggle appended after the nav tabs. */
@@ -72,11 +78,18 @@
   color: var(--on-surface-variant);
   cursor: pointer;
   font-family: var(--font-body);
-  transition: color 0.3s;
+  transition: color 0.22s ease, background 0.22s ease, transform 0.22s ease,
+    box-shadow 0.22s ease;
 }
 
+/* Hover: a soft translucent pill fills in behind the tab with a gentle upward
+   lift and a warm drop shadow, and the label brightens. The active tab keeps
+   its accent color (higher-specificity .active rule) but still lifts. */
 .pill-tab:hover {
   color: var(--on-surface);
+  background: color-mix(in srgb, var(--on-surface) 4.5%, transparent);
+  transform: translateY(-1.25px);
+  box-shadow: 0 12px 22px -12px var(--pill-lift-shadow);
 }
 
 .pill-tab.active {
