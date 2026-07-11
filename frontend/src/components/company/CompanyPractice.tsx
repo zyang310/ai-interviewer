@@ -106,6 +106,9 @@ export default function CompanyPractice({
   // Top of the results area, scrolled into view on page change so each page starts
   // from the top rather than wherever the pager sat when clicked.
   const listTopRef = useRef<HTMLDivElement>(null);
+  // The inner problem-list scroll viewport, reset to the top on page change so a
+  // new page always starts at its first row (the list scrolls within its own box).
+  const listScrollRef = useRef<HTMLDivElement>(null);
 
   // The scrolling directory viewport + its per-letter group headers, so the A–Z
   // rail can bring a letter to the top of the viewport (only the viewport
@@ -296,6 +299,18 @@ export default function CompanyPractice({
     return sorted;
   }, [problems, difficulty, sortKey]);
 
+  // The selected company's monogram + tint for the detail-header tile (null in the
+  // list view). deriveCompany is pure, so this just reuses the directory's mapping.
+  const detail = useMemo(() => (selected ? deriveCompany(selected) : null), [selected]);
+
+  // Per-difficulty counts across the whole pool (unfiltered) for the header
+  // breakdown cards — computed from the loaded pool, not the current filter.
+  const breakdown = useMemo(() => {
+    const counts: Record<string, number> = { Easy: 0, Medium: 0, Hard: 0 };
+    for (const p of problems) if (p.difficulty in counts) counts[p.difficulty]++;
+    return counts;
+  }, [problems]);
+
   // Reset to the first page whenever the company, filter, or sort changes so the
   // pager never points past the (possibly shorter) new list.
   useEffect(() => {
@@ -310,6 +325,7 @@ export default function CompanyPractice({
 
   function goToPage(p: number) {
     setPage(Math.min(pageCount, Math.max(1, p)));
+    listScrollRef.current?.scrollTo({ top: 0 });
     listTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
@@ -614,30 +630,56 @@ export default function CompanyPractice({
               All companies
             </button>
 
-            <header className="company-head">
-              <h1>{selected.name}</h1>
-              <p>
-                {selected.problemCount}{" "}
-                {selected.problemCount === 1 ? "problem" : "problems"} in the pool.
-                Pick one below, or run a mock interview.
-              </p>
+            {/* Company identity: monogram + name, with a per-difficulty breakdown
+                of the pool on the right (shown once the pool has loaded). */}
+            <header className="co-detail-head">
+              <div className="co-detail-id">
+                <span className={`co-tile co-detail-tile co-tint-${detail!.tint}`}>
+                  {detail!.mono}
+                </span>
+                <div className="co-detail-heading">
+                  <h1>{selected.name}</h1>
+                  <p>
+                    {selected.problemCount}{" "}
+                    {selected.problemCount === 1 ? "problem" : "problems"} in the pool.
+                  </p>
+                </div>
+              </div>
+              {!loadingProblems && !problemsError && problems.length > 0 && (
+                <div className="co-breakdown">
+                  {(["Easy", "Medium", "Hard"] as const).map((d) => (
+                    <div key={d} className="co-stat">
+                      <span className={`co-stat-num ${d.toLowerCase()}`}>
+                        {breakdown[d]}
+                      </span>
+                      <span className="co-stat-label">{d}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </header>
 
-            {/* Mock Interview CTA */}
-            <div className="company-mock">
+            {/* Mock Interview banner: accent icon tile + copy + CTA. */}
+            <div className="co-mock-banner">
+              <span className="co-mock-icon">
+                <span className="material-symbols-outlined">bolt</span>
+              </span>
+              <div className="co-mock-text">
+                <div className="co-mock-title">Mock Interview</div>
+                <p className="co-mock-desc">
+                  {selected.mockEligible
+                    ? `Two questions, drawn from what ${selected.name} actually asks — revealed one at a time.`
+                    : "Not enough data for a mock interview — pick a problem from the list below."}
+                </p>
+              </div>
               <button
-                className="btn btn-primary btn-icon company-mock-btn"
+                className="btn btn-primary btn-icon co-mock-cta"
                 disabled={!selected.mockEligible || starting}
                 onClick={() => setMockConfirm(true)}
               >
                 <span className="material-symbols-outlined">bolt</span>
                 Start Mock Interview
               </button>
-              <p className="company-mock-sub">
-                {selected.mockEligible
-                  ? `Two questions, drawn from what ${selected.name} actually asks.`
-                  : "Not enough data for a mock interview — pick a problem from the list below."}
-              </p>
             </div>
 
             {startError && <p className="company-status error">{startError}</p>}
@@ -678,43 +720,51 @@ export default function CompanyPractice({
               <p className="company-status">No problems match this filter.</p>
             ) : (
               <>
-              <ul className="problem-list">
-                {pagedProblems.map((p) => (
-                  <li key={p.url} className="problem-row">
-                    <div className="problem-main">
-                      <div className="problem-title-row">
-                        <span className="problem-title">
-                          {p.id}. {p.title}
-                        </span>
-                        <span className={`diff-badge ${p.difficulty.toLowerCase()}`}>
-                          {p.difficulty}
-                        </span>
-                        {p.recent && <span className="recent-chip">Recent</span>}
-                      </div>
-                      <div className="problem-meta">
-                        <span className="material-symbols-outlined">trending_up</span>
-                        {Math.round(p.frequency)}% frequency
-                      </div>
-                    </div>
-                    <div className="problem-actions">
-                      <button
-                        className="company-icon-btn"
-                        title="Open on LeetCode"
-                        onClick={() => openLeet(p.url)}
-                      >
-                        <span className="material-symbols-outlined">open_in_new</span>
-                      </button>
-                      <button
-                        className="btn btn-primary problem-start"
-                        disabled={starting}
-                        onClick={() => startSingle(p)}
-                      >
-                        Start interview
-                      </button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
+              <div className="problem-scroll-wrap">
+                <div className="problem-scroll" ref={listScrollRef}>
+                  <ul className="problem-list">
+                    {pagedProblems.map((p) => (
+                      <li key={p.url} className="problem-row">
+                        <span className="problem-num">{p.id}</span>
+                        <div className="problem-info">
+                          <div className="problem-title-row">
+                            <span className="problem-title">{p.title}</span>
+                            <span className={`diff-badge ${p.difficulty.toLowerCase()}`}>
+                              {p.difficulty}
+                            </span>
+                            {p.recent && <span className="recent-chip">Recent</span>}
+                          </div>
+                        </div>
+                        <div className="problem-freq">
+                          <span className="material-symbols-outlined">trending_up</span>
+                          <span className="problem-freq-text">
+                            Asked in{" "}
+                            <span className="problem-freq-val">
+                              {Math.round(p.frequency)}%
+                            </span>{" "}
+                            of interviews
+                          </span>
+                        </div>
+                        <button
+                          className="company-icon-btn"
+                          title="Open on LeetCode"
+                          onClick={() => openLeet(p.url)}
+                        >
+                          <span className="material-symbols-outlined">open_in_new</span>
+                        </button>
+                        <button
+                          className="btn btn-primary problem-start"
+                          disabled={starting}
+                          onClick={() => startSingle(p)}
+                        >
+                          Start interview
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="co-fade" />
+              </div>
 
               {pager}
               </>

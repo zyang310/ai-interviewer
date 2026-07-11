@@ -36,6 +36,7 @@ mogi
 build/bin
 frontend/dist
 frontend/node_modules
+frontend/dev-stubs.html
 
 # SQLite database files
 *.db

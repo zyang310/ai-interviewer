@@ -480,27 +480,148 @@
   font-size: 18px;
 }
 
-/* ── Mock Interview CTA ────────────────────────────────────────────────── */
-.company-mock {
+/* ── Detail header: monogram + name, with a per-difficulty breakdown ──────── */
+.co-detail-head {
   display: flex;
-  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 28px;
+}
+
+.co-detail-id {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  min-width: 0;
+}
+
+/* Larger cousin of .co-tile — reuses the deterministic .co-tint-N palette. */
+.co-detail-tile {
+  width: 64px;
+  height: 64px;
+  border-radius: 17px;
+  font-size: 28px;
+  box-shadow: 0 14px 30px -18px rgba(60, 50, 30, 0.55);
+}
+
+:root[data-theme="dark"] .co-detail-tile {
+  box-shadow: 0 14px 30px -18px rgba(0, 0, 0, 0.6);
+}
+
+.co-detail-heading {
+  min-width: 0;
+}
+
+.co-detail-heading h1 {
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  line-height: 1.05;
+  color: var(--on-surface);
+  margin: 0;
+}
+
+.co-detail-heading p {
+  margin: 8px 0 0;
+  font-size: 14px;
+  color: var(--on-surface-variant);
+}
+
+/* Difficulty breakdown — three mono stat cards, colour-coded like .diff-badge. */
+.co-breakdown {
+  flex: none;
+  display: flex;
   gap: 8px;
-  padding: 20px;
+  padding-top: 4px;
+}
+
+.co-stat {
+  min-width: 82px;
+  padding: 10px 14px;
   border: 1px solid var(--level-1-border);
   border-radius: 12px;
-  background-color: var(--level-1-bg);
+  background: var(--surface-container-low);
+  text-align: center;
 }
 
-.company-mock-btn {
-  align-self: flex-start;
-  padding: 10px 20px;
-  font-size: 13px;
+.co-stat-num {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 19px;
+  font-weight: 700;
+  line-height: 1;
 }
 
-.company-mock-sub {
-  margin: 0;
+.co-stat-num.easy { color: var(--secondary); }
+.co-stat-num.medium { color: var(--warning); }
+.co-stat-num.hard { color: var(--error); }
+
+.co-stat-label {
+  display: block;
+  margin-top: 5px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--on-surface-variant);
+}
+
+/* ── Mock Interview banner (accent icon tile · copy · CTA) ─────────────────── */
+.co-mock-banner {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 18px 20px;
+  border: 1px solid var(--level-1-border);
+  border-radius: 16px;
+  background: linear-gradient(180deg, var(--surface-bright), var(--surface-container-low));
+}
+
+:root[data-theme="dark"] .co-mock-banner {
+  background: linear-gradient(180deg, var(--surface-container), var(--surface-container-low));
+}
+
+.co-mock-icon {
+  flex: none;
+  width: 48px;
+  height: 48px;
+  border-radius: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--primary);
+}
+
+.co-mock-icon .material-symbols-outlined {
+  font-size: 26px;
+  color: var(--on-primary);
+  font-variation-settings: "FILL" 1;
+}
+
+.co-mock-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.co-mock-title {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--on-surface);
+}
+
+.co-mock-desc {
+  margin: 3px 0 0;
   font-size: 13px;
   color: var(--on-surface-variant);
+}
+
+.co-mock-cta {
+  flex: none;
+  padding: 12px 20px;
+  font-size: 13px;
+  border-radius: 11px;
 }
 
 /* ── Browse controls (difficulty chips · pager · sort) ─────────────────────
@@ -570,36 +691,61 @@
   cursor: pointer;
 }
 
-/* ── Problem list ──────────────────────────────────────────────────────── */
+/* ── Problem list ────────────────────────────────────────────────────────
+   One cohesive card of dense, divider-separated rows. The list scrolls within
+   its own box (a max-height guard on long pages) with a bottom fade — mirrors
+   the directory's .co-scroll pattern. */
+.problem-scroll-wrap {
+  position: relative;
+}
+
+.problem-scroll {
+  max-height: 520px;
+  overflow-y: auto;
+  border: 1px solid var(--level-1-border);
+  border-radius: 16px;
+  background: var(--surface-container);
+}
+
 .problem-list {
   list-style: none;
   margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
 }
 
 .problem-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 16px;
-  padding: 12px 16px;
-  border: 1px solid var(--outline-variant);
-  border-radius: 12px;
-  background-color: var(--surface-container);
-  transition: border-color 0.15s;
+  padding: 13px 18px;
+  border-bottom: 1px solid var(--level-1-border);
+  background: var(--surface-container-low);
+  transition: background-color 0.13s;
+}
+
+.problem-row:last-child {
+  border-bottom: none;
 }
 
 .problem-row:hover {
-  border-color: var(--outline);
+  background: var(--surface-container-high);
 }
 
-.problem-main {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+/* Mono problem id in its own right-aligned gutter. */
+.problem-num {
+  flex: none;
+  width: 32px;
+  text-align: right;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--outline);
+}
+
+.problem-info {
+  flex: 1;
   min-width: 0;
 }
 
@@ -607,63 +753,74 @@
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
 }
 
 .problem-title {
-  font-size: 14px;
+  font-size: 14.5px;
   font-weight: 600;
   color: var(--on-surface);
 }
 
-.problem-meta {
+/* How often the company asks this problem (0–100 interview-frequency). */
+.problem-freq {
+  flex: none;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  font-size: 12px;
+  gap: 7px;
   color: var(--on-surface-variant);
+  white-space: nowrap;
 }
 
-.problem-meta .material-symbols-outlined {
-  font-size: 15px;
+.problem-freq .material-symbols-outlined {
+  font-size: 18px;
+  color: var(--secondary);
 }
 
-.problem-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
+.problem-freq-text {
+  font-size: 13px;
+  font-weight: 600;
 }
 
+.problem-freq-val {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--on-surface);
+}
+
+/* Square icon button — the open-on-LeetCode action and every pager control. */
 .company-icon-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
-  border: none;
-  border-radius: 8px;
-  background: transparent;
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border: 1px solid var(--level-1-border);
+  border-radius: 10px;
+  background: var(--level-1-bg);
   color: var(--on-surface-variant);
   cursor: pointer;
-  transition: background-color 0.15s, color 0.15s;
+  transition: background-color 0.15s, color 0.15s, border-color 0.15s;
 }
 
 .company-icon-btn:hover:not(:disabled) {
-  background-color: var(--surface-container-highest);
+  background-color: var(--surface-container-low);
   color: var(--on-surface);
+  border-color: var(--outline);
 }
 
 .company-icon-btn:disabled {
-  opacity: 0.35;
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
 .company-icon-btn .material-symbols-outlined {
-  font-size: 20px;
+  font-size: 19px;
 }
 
 .problem-start {
+  flex: none;
   white-space: nowrap;
 }
 
