@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { CheckForUpdate, OpenReleasePage, OpenURL, models } from "../../lib/wailsBridge";
+import MogiLogo from "../common/MogiLogo";
 import "./AboutSection.css";
 
 // About → Project links. Opened in the user's real browser via OpenURL (not the
@@ -67,7 +68,9 @@ export default function AboutSection({ appVersion, goos, setError, setSuccess }:
 
       {/* Identity block. */}
       <div className="about-identity">
-        <span className="about-logo">模擬</span>
+        <span className="about-logo">
+          <MogiLogo size={46} variant="cream" />
+        </span>
         <div className="about-identity-meta">
           <div className="about-name">Mogi</div>
           <div className="about-tagline">

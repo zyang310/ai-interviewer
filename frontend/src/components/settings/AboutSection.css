@@ -15,19 +15,23 @@
   background: var(--surface-container);
 }
 
+/* App-icon tile: cream mark on Indigo Night. Deliberately theme-invariant
+   (like --code-panel-bg) — an app icon doesn't flip with the theme, and the
+   dark theme's periwinkle --primary would sink the cream mark. */
 .about-logo {
   flex-shrink: 0;
   width: 66px;
   height: 66px;
   border-radius: 16px;
-  background: var(--primary);
+  background: #2C2F5A;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-family: var(--font-display);
-  font-size: 27px;
-  letter-spacing: 0.05em;
-  color: var(--on-primary);
+}
+
+/* Hairline lift so the indigo tile still reads on the dark identity card. */
+:root[data-theme="dark"] .about-logo {
+  border: 1px solid var(--level-1-border);
 }
 
 .about-identity-meta {

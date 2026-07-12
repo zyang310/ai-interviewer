@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { SetAPIKey, GetAuthStatus, models } from "../../lib/wailsBridge";
+import MogiLogo from "../common/MogiLogo";
 import "./SetupPage.css";
 
 interface Props {
@@ -122,13 +123,9 @@ export default function SetupPage({ authStatus, onAuthChange, onContinue }: Prop
       <main className={`setup-card${checkState === "success" ? " setup-card--success" : ""}`}>
         {/* Header */}
         <header className="setup-header">
-          <div className="setup-icon-ring">
-            <span
-              className="material-symbols-outlined"
-              style={{ fontVariationSettings: "'FILL' 1" }}
-            >
-              tune
-            </span>
+          <div className="setup-brand">
+            <MogiLogo size={64} />
+            <span className="setup-brand-name">Mogi</span>
           </div>
           <h1 className="setup-title">Setup Environment</h1>
           <p className="setup-subtitle">

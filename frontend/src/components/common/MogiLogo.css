@@ -1,0 +1,44 @@
+/* ── Mogi brand mark ─────────────────────────────────────────────────────────
+   The mark keeps its own brand inks (warm sumi / washi cream + a persimmon
+   dot) rather than the MD3 tokens — the exact values come from the logo
+   exports, and only flip with the theme. */
+.mogi-mark {
+  --mogi-ink: #26241E; /* sumi */
+  --mogi-dot: #F0731C; /* persimmon */
+  display: block;
+  flex-shrink: 0;
+}
+
+/* Dark theme — and the pinned "cream" variant used on a fixed indigo tile
+   (the app-icon presentation) — swap to the light-on-dark inks. */
+:root[data-theme="dark"] .mogi-mark,
+.mogi-mark--cream {
+  --mogi-ink: #E4DECF; /* washi cream */
+  --mogi-dot: #FF8A3D;
+}
+
+.mogi-mark-ring {
+  fill: var(--mogi-ink);
+}
+
+.mogi-mark-dot {
+  fill: var(--mogi-dot);
+}
+
+.mogi-mark-m {
+  fill: none;
+  stroke: var(--mogi-ink);
+  stroke-width: 6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Follow the app-wide 0.3s theme cross-fade — style.css transitions
+   color/background/border, but SVG paint needs fill/stroke. */
+@media (prefers-reduced-motion: no-preference) {
+  .mogi-mark-ring,
+  .mogi-mark-dot,
+  .mogi-mark-m {
+    transition: fill 0.3s ease, stroke 0.3s ease;
+  }
+}
