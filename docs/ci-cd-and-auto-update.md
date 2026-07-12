@@ -36,13 +36,21 @@ can install. This repo uses both, split across two workflows:
 - CI runs on **every push to `main`** ([build.yml](../.github/workflows/build.yml)).
 - CD runs when you **push a version tag** ([release.yml](../.github/workflows/release.yml)).
 
+A third workflow ([refresh-problems.yml](../.github/workflows/refresh-problems.yml)) is
+neither CI nor CD but **scheduled automation**: on the 1st and 15th of each month it
+regenerates the committed Company Practice dataset from its upstream sources and opens a
+PR when anything changed — automating a *data* chore rather than a build. Its design (and
+the GITHUB_TOKEN quirks it works around) is documented in the workflow file itself; the
+data pipeline it drives is in [company-practice-plan.md](company-practice-plan.md).
+
 ### GitHub Actions in one paragraph
 
 GitHub Actions runs your automation on GitHub's servers. A **workflow** is a YAML file in
 `.github/workflows/`. Each workflow has **triggers** (`on: push`, `on: pull_request`,
-`on: push: tags`) and one or more **jobs**. A job runs on a fresh virtual machine called a
-**runner** (we use `macos-latest`, because building a macOS `.app` needs macOS) and is a
-list of **steps** — either a shell command (`run:`) or a reusable **action**
+`on: push: tags`, or `on: schedule` — a cron timer, used by the dataset refresh) and one or
+more **jobs**. A job runs on a fresh virtual machine called a **runner** (the build
+workflows use `macos-latest`, because building a macOS `.app` needs macOS; the dataset
+refresh runs pure Go and gets by on `ubuntu-latest`) and is a list of **steps** — either a shell command (`run:`) or a reusable **action**
 (`uses: actions/checkout@v4`). When a job finishes it can keep files in one of two very
 different places:
 
@@ -51,8 +59,9 @@ different places:
 | **Artifact** (`actions/upload-artifact`) | People with **repo access** | Expires (default 90 days) | Test builds from `main` |
 | **Release** (`softprops/action-gh-release`) | **Anyone**, even logged-out | Permanent | The public, downloadable app |
 
-That distinction is the whole reason there are two workflows: a CI artifact is great for
-"did this commit build?", but only a **Release** satisfies "anyone can download it."
+That distinction is the whole reason build and release are separate workflows: a CI
+artifact is great for "did this commit build?", but only a **Release** satisfies "anyone
+can download it."
 
 ### Versioning: tags are the source of truth
 
@@ -130,7 +139,7 @@ Developer account ever enters the picture.
                                                   └─────────────────────────────┘
 ```
 
-Both workflows do the same macOS build; they differ in **trigger**, **version**, and
+Both build workflows do the same macOS build; they differ in **trigger**, **version**, and
 **where the output goes**. `main` pushes produce a throwaway `dev-<sha>` build as a
 repo-only artifact (continuous proof it compiles). Tag pushes produce a real `vX.Y.Z`
 build published as a public Release.
