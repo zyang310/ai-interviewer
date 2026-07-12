@@ -9,6 +9,7 @@ import {
   OpenURL,
   models,
 } from "../../lib/wailsBridge";
+import { useScrollFade } from "../../lib/useScrollFade";
 import "./CompanyPractice.css";
 
 type Difficulty = "All" | "Easy" | "Medium" | "Hard";
@@ -323,6 +324,12 @@ export default function CompanyPractice({
   const startIdx = (currentPage - 1) * PAGE_SIZE;
   const pagedProblems = visibleProblems.slice(startIdx, startIdx + PAGE_SIZE);
 
+  // Bottom-fade visibility for the two scroll viewports: shown only while the
+  // content actually overflows and isn't scrolled to the end, so a short list
+  // (or one read to the bottom) never wears a "more below" fade.
+  const dirFade = useScrollFade(dirScrollRef, [filtered]);
+  const listFade = useScrollFade(listScrollRef, [pagedProblems]);
+
   function goToPage(p: number) {
     setPage(Math.min(pageCount, Math.max(1, p)));
     listScrollRef.current?.scrollTo({ top: 0 });
@@ -616,7 +623,7 @@ export default function CompanyPractice({
                           </div>
                         )}
                       </div>
-                      <div className="co-fade" />
+                      <div className={`co-fade${dirFade ? " visible" : ""}`} />
                     </div>
                   )}
                 </div>
@@ -763,7 +770,7 @@ export default function CompanyPractice({
                     ))}
                   </ul>
                 </div>
-                <div className="co-fade" />
+                <div className={`co-fade${listFade ? " visible" : ""}`} />
               </div>
 
               {pager}

@@ -59,6 +59,24 @@
           GetHotkeyStatus: function () { return Promise.resolve({ goos: "darwin", hookEnabled: true }); },
           ListDisplays: function () { return Promise.resolve([{ index: 0, name: "Display 1", width: 1920, height: 1080, x: 0, y: 0 }]); },
           ListCompanies: function () { return Promise.resolve(companies); },
+          ListCompanyProblems: function (slug) {
+            var c = companies.filter(function (x) { return x.slug === slug; })[0];
+            var n = Math.min(c ? c.problemCount : 0, 25);
+            var diffs = ['Easy', 'Medium', 'Hard'];
+            var out = [];
+            for (var i = 0; i < n; i++) {
+              out.push({
+                id: 100 + i,
+                title: 'Stub Problem ' + (i + 1),
+                difficulty: diffs[i % 3],
+                frequency: Math.max(5, 100 - i * 4),
+                acceptance: 50,
+                url: 'https://leetcode.com/problems/stub-' + i + '/',
+                recent: i < 2,
+              });
+            }
+            return Promise.resolve(out);
+          },
           ListStarredCompanies: function () { return Promise.resolve(starred.slice()); },
           SetCompanyStarred: function (slug, on) {
             if (on) { if (starred.indexOf(slug) < 0) starred.push(slug); }

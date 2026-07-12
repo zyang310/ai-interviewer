@@ -443,7 +443,9 @@
 }
 
 /* Bottom fade — signals more content below the scroll. Fades to the viewport
-   fill; the right inset clears the scrollbar gutter. */
+   fill; the right inset clears the scrollbar gutter. Hidden unless the list
+   actually overflows and isn't scrolled to the end (useScrollFade toggles
+   .visible); opacity so it can ease in/out instead of popping. */
 .co-fade {
   position: absolute;
   left: 1px;
@@ -453,6 +455,12 @@
   border-radius: 0 0 16px 16px;
   background: linear-gradient(to top, var(--surface-container), transparent);
   pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.16s ease;
+}
+
+.co-fade.visible {
+  opacity: 1;
 }
 
 /* ── Back link ─────────────────────────────────────────────────────────── */
