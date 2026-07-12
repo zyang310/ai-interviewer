@@ -3,7 +3,9 @@ package main
 // This file holds every bound method whose body drives the Wails runtime —
 // window/overlay geometry and opening things in the user's real browser. It is
 // deliberately the ONLY file in package main that imports the runtime, keeping
-// presentation-level OS calls out of app.go's wiring and delegations.
+// presentation-level OS calls out of app.go's wiring and delegations. (The one
+// window move the runtime can't express — the animated darwin zoom — talks to
+// Cocoa directly in window_zoom_darwin.go.)
 
 import (
 	"fmt"
@@ -103,6 +105,12 @@ const (
 // always-on-top, and parks it at the top-centre of the screen so it hovers
 // over the user's IDE during an interview.
 func (a *App) EnterOverlayMode() {
+	// Overlay geometry clobbers the window frame, so any remembered pre-zoom
+	// frame is meaningless; forget it so the next green-button click zooms
+	// fresh (matching the WindowControls glyph, which remounts reset).
+	a.winZoom = zoomState{}
+	nativeResetZoom()
+
 	runtime.WindowSetAlwaysOnTop(a.ctx, true)
 	runtime.WindowSetSize(a.ctx, overlayWidth, overlayBarH)
 	a.positionOverlayTopCenter()
@@ -229,39 +237,47 @@ func (a *App) MinimiseWindow() {
 	runtime.WindowMinimise(a.ctx)
 }
 
-// windowFrame captures a window's size and position so a custom zoom can put
-// the window back exactly where it was on toggle-off.
+// windowFrame captures a window's size and position so the non-darwin fallback
+// zoom can put the window back exactly where it was on toggle-off. (On darwin
+// the pre-zoom frame lives on the ObjC side instead — see window_zoom_darwin.go
+// for why.)
 type windowFrame struct {
 	w, h, x, y int
 }
 
-// zoomState backs the green-button zoom toggle: whether the window is currently
-// zoomed, and the frame to restore. We drive the toggle ourselves rather than
-// use runtime.WindowToggleMaximise because macOS's native zoom, on a frameless
+// zoomState backs the green-button zoom toggle. zoomed is shared by both the
+// native (darwin) and runtime (fallback) paths; prev is only used by the
+// fallback. We drive the toggle ourselves rather than use
+// runtime.WindowToggleMaximise because macOS's native zoom, on a frameless
 // window with no app-defined standard frame, fills from the top-left corner.
 type zoomState struct {
 	zoomed bool
 	prev   windowFrame
 }
 
-// zoomFraction is how much of the current display a "zoomed" window fills —
-// large, but with a margin so it reads as a zoom (and clears the menu bar)
-// rather than a full-screen takeover.
-const zoomFraction = 1
-
-// ToggleMaximiseWindow toggles the window between a large, display-centred
-// "zoom" and its previous size/position — the macOS green-button feel. It grows
-// the window in place and centres it on the current display instead of jumping
-// to the top-left corner (which native zoom does for a frameless window).
+// ToggleMaximiseWindow toggles the window between a zoomed state and its
+// previous frame — the macOS green-button feel. On darwin it animates to the
+// true screen edges (sliding under the translucent Dock, stopping below the
+// menu bar so the in-app traffic lights stay visible) via the native Cocoa
+// path in window_zoom_darwin.go; elsewhere it falls back to the instant
+// Wails-runtime resize, sized to the display and centred.
 func (a *App) ToggleMaximiseWindow() {
 	if a.winZoom.zoomed {
-		p := a.winZoom.prev
-		runtime.WindowSetSize(a.ctx, p.w, p.h)
-		runtime.WindowSetPosition(a.ctx, p.x, p.y)
+		if !nativeRestoreWindow() {
+			p := a.winZoom.prev
+			runtime.WindowSetSize(a.ctx, p.w, p.h)
+			runtime.WindowSetPosition(a.ctx, p.x, p.y)
+		}
 		a.winZoom.zoomed = false
 		return
 	}
 
+	if nativeZoomWindow() {
+		a.winZoom.zoomed = true
+		return
+	}
+
+	// Fallback (non-darwin): fill the current display and centre, instantly.
 	sw, sh, ok := a.currentScreenSize()
 	if !ok {
 		return // no display to size against; leave the window untouched
@@ -272,8 +288,7 @@ func (a *App) ToggleMaximiseWindow() {
 	x, y := runtime.WindowGetPosition(a.ctx)
 	a.winZoom.prev = windowFrame{w: w, h: h, x: x, y: y}
 
-	// Grow to a large fraction of the display, then centre on that display.
-	runtime.WindowSetSize(a.ctx, int(float64(sw)*zoomFraction), int(float64(sh)*zoomFraction))
+	runtime.WindowSetSize(a.ctx, sw, sh)
 	runtime.WindowCenter(a.ctx)
 	a.winZoom.zoomed = true
 }
