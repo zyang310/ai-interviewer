@@ -1,0 +1,122 @@
+/* ChatEmptyState — centered "ready to begin" composition shown before the
+   first message. */
+.chat-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 0 16px;
+}
+
+/* Icon avatar — softly breathing indigo-tinted tile. */
+.chat-empty-avatar {
+  flex-shrink: 0;
+  width: 76px;
+  height: 76px;
+  border-radius: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--primary) 14%, var(--surface-container-low)),
+    var(--surface-container-low)
+  );
+  border: 1px solid var(--level-1-border);
+  animation: mogi-breathe 4s ease-in-out infinite;
+}
+
+.chat-empty-avatar .material-symbols-outlined {
+  font-size: 36px;
+  color: var(--primary);
+}
+
+@keyframes mogi-breathe {
+  0%, 100% { transform: scale(1); opacity: 0.9; }
+  50% { transform: scale(1.06); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-empty-avatar {
+    animation: none;
+  }
+}
+
+/* Headline + body */
+.chat-empty-headline {
+  margin: 16px 0 0;
+  font-family: var(--font-display);
+  font-size: 27px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--on-surface);
+}
+
+.chat-empty-body {
+  margin: 8px 0 0;
+  max-width: 400px;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--on-surface-variant);
+}
+
+/* Quick-start chips — pill buttons that send a canned first message. */
+.chat-starter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  max-width: 440px;
+  margin: 24px 0 0;
+}
+
+.chat-starter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 16px;
+  border: 1px solid var(--outline-variant);
+  border-radius: 9999px;
+  background-color: var(--surface-container-low);
+  color: var(--on-surface-variant);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.chat-starter-chip:hover:not(:disabled) {
+  color: var(--on-surface);
+  border-color: var(--outline);
+  background-color: var(--surface-container);
+}
+
+.chat-starter-chip:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.chat-starter-chip .material-symbols-outlined {
+  font-size: 16px;
+}
+
+.chat-starter-chip-icon--accent {
+  color: var(--secondary);
+}
+
+/* Mic hint caption — only rendered when voice input is available. */
+.chat-empty-mic-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 12px 0 0;
+  font-size: 12px;
+  color: var(--outline);
+}
+
+.chat-empty-mic-hint .material-symbols-outlined {
+  font-size: 16px;
+}

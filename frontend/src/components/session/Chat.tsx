@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, KeyboardEvent } from "react";
 import MessageBubble from "../common/MessageBubble";
+import ChatEmptyState from "./ChatEmptyState";
 import "./Chat.css";
 
 interface Message {
@@ -78,9 +79,11 @@ export default function Chat({
     <div className="chat">
       <div className="chat-messages">
         {messages.length === 0 && !loading && (
-          <p className="chat-empty">
-            Start the interview and type a message to begin.
-          </p>
+          <ChatEmptyState
+            onSend={onSend}
+            disabled={disabled}
+            showMicHint={!!onMicToggle}
+          />
         )}
         {messages.map((m, i) => (
           <MessageBubble key={i} role={m.role} content={m.content} />

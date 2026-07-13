@@ -44,6 +44,12 @@ stretch goals:
 ```
 
 
+fixes = YOU
+Can you walk me through the problem?
+INTERVIEWER
+Welcome! I see you've selected "Walk me through the problem." I'll present the problem statement on your screen now. Please take a moment to read it.
+
+
 
 
 

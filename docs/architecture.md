@@ -62,7 +62,7 @@ frontend/src/
    ├─ company/    CompanyPractice · CompanyBanner                 — "Companies" tab
    ├─ history/    History · SessionHistoryCard · Debrief · RadarChart   — "History" tab
    ├─ settings/   Settings (shell) · 8 ✕ *Section · ApiKeyCard · ModelPicker · VoicePicker — "Settings" tab
-   ├─ session/    Chat · CapturePanel · Overlay · RegionSelector  — live interview (capture + chat + overlay)
+   ├─ session/    Chat · ChatEmptyState · CapturePanel · Overlay · RegionSelector  — live interview (capture + chat + overlay)
    ├─ setup/      SetupPage                                       — first-run onboarding
    └─ common/     MessageBubble · WindowControls · UpdateBanner   — shared UI + app shell
 ```
@@ -197,7 +197,7 @@ The system prompt ([../internal/ai/prompts.go](../internal/ai/prompts.go)) is th
 - Only respond when spoken to — don't interrupt unprompted
 - Match the tone of a senior engineer, not a cheerful chatbot
 
-**There is no written problem statement.** A screenshot of the candidate's current screen is attached to their **latest message only** — the interviewer reads the problem and the current code from it (it may show an IDE, a LeetCode/NeetCode page, a terminal, or a browser). Earlier messages do not carry screenshots; this is intentional. Conversation history is included for continuity. If the interviewer can't yet tell what the problem is, it asks the candidate to clarify rather than guessing.
+**There is no written problem statement.** A screenshot of the candidate's current screen is normally attached to their **latest message only** — the interviewer reads the problem and the current code from it (it may show an IDE, a LeetCode/NeetCode page, a terminal, or a browser). Earlier messages do not carry screenshots; this is intentional. Conversation history is included for continuity. The screenshot can also be absent (capture just started) or show no problem at all (a blank editor, this app, the desktop) — so the interviewer **never presents or invents a problem itself**: when it can't see one, it says so and asks the candidate to pull one up rather than guessing. (This matters right after Start — if the candidate sends a message, e.g. via a quick-start chip, before switching to their IDE, the capture shows Mogi's own window, not a problem.)
 
 **Company Practice** builds on the same base via `BuildCompanySystemPrompt` ([../internal/ai/prompts.go](../internal/ai/prompts.go)): it appends a company persona (from `companyProfiles`) and the assignment **by reference** (title + difficulty only — never the statement). So the interviewer can "greet first" without a leading assistant turn in model history (which some models reject), the opener is a **deterministic template** — persisted to the transcript and spoken (if voice is on) — while the system prompt *encodes* that the greeting already happened; model history stays `system → user → …`. Mock interviews carry **both** problems plus the Q1→Q2 handoff rules (never name Q2 early; move on when Q1 is solved, the candidate is stuck, or they ask). See [company-practice-plan.md](company-practice-plan.md).
 

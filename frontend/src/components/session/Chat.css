@@ -13,13 +13,6 @@
   flex-direction: column;
 }
 
-.chat-empty {
-  color: var(--on-surface-variant);
-  text-align: center;
-  margin-top: 40px;
-  font-style: italic;
-}
-
 /* Thinking indicator */
 .thinking {
   padding: 12px 18px;

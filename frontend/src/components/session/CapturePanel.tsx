@@ -61,7 +61,15 @@ export default function CapturePanel({ isActive, prefs, onSetRegion }: Props) {
           preview ? (
             <img className="capture-preview-img" src={preview} alt="what the AI sees" />
           ) : (
-            <p className="capture-preview-hint">Capturing…</p>
+            <div className="capture-watching">
+              <span className="material-symbols-outlined capture-watching-icon">
+                screenshot_monitor
+              </span>
+              <div className="capture-watching-text">
+                <p className="capture-watching-title">Watching your screen</p>
+                <p className="capture-watching-caption">Capturing…</p>
+              </div>
+            </div>
           )
         ) : (
           <p className="capture-preview-hint">

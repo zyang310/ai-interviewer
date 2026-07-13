@@ -67,6 +67,56 @@
   max-width: 280px;
 }
 
+/* Transient "watching" placeholder — shown while a session is active but no
+   screenshot has loaded yet (isActive && !preview). Distinct from
+   .capture-preview-hint, which is the pre-session instructional copy. */
+.capture-watching {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.capture-watching-icon {
+  font-size: 32px;
+  color: var(--on-surface-variant);
+  animation: mogi-float 3s ease-in-out infinite;
+}
+
+@keyframes mogi-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .capture-watching-icon {
+    animation: none;
+  }
+}
+
+.capture-watching-text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.capture-watching-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--on-surface-variant);
+}
+
+.capture-watching-caption {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--outline);
+}
+
 .capture-caption {
   font-size: 12px;
   color: var(--outline);
