@@ -8,34 +8,30 @@
 >
 > **Status legend:** ✅ done · ◑ in progress · ☐ not started
 >
-> **Current status (2026-07-16):** **Phases 0–2 ✅ complete** — the access
-> service is built and verified end-to-end locally (Phase 0); the app backend
-> (store → access client → account service → mode-aware AuthStatus → bindings +
-> launch refresh) is implemented and unit-tested against fakes (Phase 1); the
-> full frontend (app-shell plumbing, InviteActivation, SetupPage two-door fork,
-> Settings account card + mode fork + invite entry, pinned-model lock card +
-> managed voice guards) is built and verified (2.1–2.5), and the **2.6 full
-> local e2e battery passed** against a live memory/log service under
-> `wails dev` — redeem, pinning, voice resolution, kill switch, BYOK
-> regression, sign-out, offline grace, Clear-All — which also closed 1.10's
-> deferred interactive gate and 2.3's live drive. **Phase 3 started
-> (2026-07-18): 3.1 ✅ complete** — both shared keys minted and verified live
-> (`access-service/ops/verify-providers.sh` **5/5**, incl. the named
-> checkpoint: EL TTS refused with 401 "missing the permission
-> text_to_speech"). **3.2 ✅ complete** — the Firestore store is implemented
-> and proven against the emulator (transactional invite race → exactly
-> MaxUses wins; live service smoke incl. the doc-edited kill switch flipping
-> `/keys` to 403 with no restart). **3.3 ◑ prepared** — `resend.go` verified
-> against current docs (no drift), full-stack `ops/smoke-resend.sh` ready;
-> the live smoke + domain decision need the owner-created Resend account.
-> **3.4 ✅ deployed** — live on Cloud Run at
-> `https://mogi-access-zdz7y265mq-uc.a.run.app` (Firestore + Secret Manager +
-> real OTP mail), full prod smoke green, kill-switch drill passed, and the
-> service left **dormant** until a real OpenRouter provisioning key replaces
-> the stub minter. **3.5 ✅** — the app now ships pointing at that URL
-> (`wails build` green, verified in the binary, live client probe passed).
-> Remaining: 3.6 (prod e2e + rotation drill), 3.7 (docs), 3.8 (cohort launch)
-> — all gated on the OpenRouter Management key.
+> **Current status (2026-07-19): shipped.** All phases ✅ — the access service
+> is live on Cloud Run at `https://mogi-access-zdz7y265mq-uc.a.run.app`
+> (Firestore + Secret Manager + real OTP mail from `otp@trymogi.dev`), the app
+> ships pointing at it, and a **fresh install completes the whole tester
+> journey against production**: invite → emailed code → developer-funded keys
+> installed → Hub usable with zero setup. Real per-tester OpenRouter keys are
+> minted with a **$3 cap** and proven functional by a live inference call.
+> Kill switch, per-tester revocation, and invite retirement have all been
+> drilled against prod. 5 single-use cohort invites are minted; budget alerts
+> ($10/$20) verified; ops runbook in
+> [../access-service/README.md](../access-service/README.md).
+>
+> **Two loose ends:**
+> 1. **Rotation drill half-finished** — a replacement Google key is minted and
+>    verified as secret **version 2**, but Cloud Run resolves `:latest` at
+>    *container start*, so the warm instance still serves v1. Needs a redeploy
+>    (or an idle-out), then delete the v1 key.
+> 2. **Distribution is the owner's call** — invites exist and the phase is on;
+>    handing codes to humans is deliberately a manual step.
+>
+> **Bugs this phase caught** (both only findable with real credentials):
+> a trailing slash in the OpenRouter mint URL that **would have failed every
+> activation** (3.6), and a pre-existing **SIGSEGV in the global hotkey
+> listener** under `wails dev` — unrelated to managed keys, tracked separately.
 
 ## Context
 
@@ -742,11 +738,42 @@ planned except for the small as-built refinements noted per step.
   > script's default, and a naive `revoke` would have wiped the tester's minted
   > `ORKey`. New `ops/openrouter-keys.sh` (`list`/`delete <hash>`) exposes the
   > provisioning `Delete` that 0.5 built as an ops hook and 3.6 needs.
-- ☐ **3.7 Docs.** `roadmap.md` (status), `architecture.md` (3 bindings,
+- ✅ **3.7 Docs.** `roadmap.md` (status), `architecture.md` (3 bindings,
   `managed:changed` event, access-service data-flow note), `CLAUDE.md` (map
   rows), flip `managed-keys-plan.md` status to implemented.
-- ☐ **3.8 Cohort launch.** Mint invites, confirm budget alerts, weekly-ops glance
+  > **Done (2026-07-19).** `architecture.md`: the 3 bindings + the mode-aware
+  > `AuthStatus` note, a new **Wails events** table (`ptt:down`,
+  > `managed:changed`), the managed **data-flow diagram** (activate → verify →
+  > launch refresh, with the 401/403-purge vs 5xx-keep-cached split), the
+  > managed namespace in the Persistence section, and the three invariants
+  > (`applyKeyMode`, server-authoritative model, backend-guarded voice).
+  > `roadmap.md`: current-status bullet + a Phase 4 entry, with the OAuth PKCE
+  > item re-scoped as the **BYOK** lever (orthogonal to the managed tier, not
+  > superseded). `CLAUDE.md`: rows for `internal/access/` and `access-service/`,
+  > `managed.go` on the store row, `account.go` on the service row,
+  > InviteActivation/ManagedAccountCard on the components row, plus See-also
+  > links. `managed-keys-plan.md`: status → implemented + deployed, pointing at
+  > the README as the ops runbook.
+- ✅ **3.8 Cohort launch.** Mint invites, confirm budget alerts, weekly-ops glance
   list into the service README.
+  > **Done (2026-07-19).** **Budget alerts re-verified live** —
+  > `mogi-ai-interviewer-monthly`, $20/mo, thresholds 0.5 + 1.0 still bound.
+  > **OpenRouter funded: $10** ($0.2964 used by the 3.6 drills → $9.70
+  > available). **5 single-use invites minted** (`MaxUses=1`, per the
+  > burner-email analysis: a one-use code makes a burner address worthless
+  > because the *code* is spent regardless of which email presents it), using
+  > an unambiguous alphabet (no `0/O`, `1/I/L`) since codes get read aloud and
+  > retyped. The two multi-use **test** codes were **retired**
+  > (`Active=false`) so only clean cohort codes are live — disabled rather
+  > than deleted, keeping the usage record. **Weekly-glance runbook** added to
+  > the service README: two commands, a signal→action table, and the two
+  > numbers that bound everything (the per-key $3 cap = one tester's blast
+  > radius; the account balance = the ceiling on total loss).
+  > **Cohort sizing note:** at $9.70 with $3 caps, three maximally-greedy
+  > testers could drain the balance — but a Flash-model session costs cents,
+  > so realistic usage supports far more. The cap is per-person protection;
+  > the balance is the global brake. Top up before widening the cohort.
+  > **Codes themselves are deliberately not recorded in this repo** (public).
 
 ## Hard ordering dependencies
 

@@ -149,6 +149,30 @@ No laptop? The kill switch is one field in one document, editable from a phone:
 [console.cloud.google.com → config/config](https://console.cloud.google.com/firestore/databases/-default-/data/panel/config/config?project=ai-interviewer-500220)
 → toggle `TestPhaseActive`.
 
+### Weekly glance (2 minutes)
+
+While a cohort is running, this is the whole job:
+
+```bash
+ops/seed-firestore.sh show      # who joined, which invites are left, phase still on?
+ops/openrouter-keys.sh list     # per-tester spend against each $3 cap
+```
+
+What to look for, and what to do about it:
+
+| Signal | Meaning | Action |
+|---|---|---|
+| A tester near `$3` used | They're hitting their cap | Fine — raise it only if they're a valuable tester (mint a new key) |
+| One tester far above the rest | Runaway loop, or a shared key | `openrouter-keys.sh delete <hash>` + ask |
+| Invites all consumed | Cohort is full | Mint more (`invite <CODE> 1`) or leave it |
+| A tester who never activated | Invite unused | Nudge, or retire the code |
+| Budget email at $10 | GCP voice spend at 50% | Check quota caps still pinned; consider pausing |
+| OpenRouter balance low | Global ceiling approaching | Top up, or `off` until you do |
+
+Two numbers bound everything: the **per-key $3 cap** (blast radius of any one
+tester) and the **OpenRouter account balance** (the ceiling on total loss, no
+matter how many keys exist). Minting keys costs nothing; only inference does.
+
 ### Killing access — three scopes
 
 Pick the smallest one that solves the problem.

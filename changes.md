@@ -47,5 +47,7 @@ stretch goals:
 
 changes: PLans if I buy the apple developer 99$
 
+continue to 3.7 and finish 3.8. Ask claude if it easier to set up now. Set up releases. .1 = bug etc
+
 
 

@@ -1,30 +1,56 @@
-# Release — runs when a version tag (vX.Y.Z) is pushed.
-#
-# Purpose: build the versioned macOS app and publish it as a public GitHub
+# Release — builds the versioned macOS app and publishes it as a public GitHub
 # Release. This is the build anyone can download AND the one the in-app updater
-# compares against. Cut a release with:
+# compares against.
 #
-#     git tag v0.2.0 && git push origin v0.2.0
+# Two ways in:
 #
-# The tag is the single source of truth for the version: it is stamped into the
-# binary (-ldflags) and the macOS plist (wails.json productVersion).
+#   1. Normal path — release-please.yml merges the Release PR, creates the
+#      vX.Y.Z tag plus a GitHub Release carrying the changelog, then CALLS this
+#      workflow to build the app and attach it to that release.
+#
+#   2. Escape hatch — a hand-pushed tag still works, for a hotfix or to re-run a
+#      release whose build failed:
+#
+#          git tag v0.8.0 && git push origin v0.8.0
+#
+#      On this path no Release exists yet, so this workflow creates it.
+#
+# Either way the tag is the single source of truth for the version: it is stamped
+# into the binary (-ldflags) and the macOS plist (wails.json productVersion).
 name: Release
 
 on:
   push:
     tags: ["v*"]
+  workflow_call:
+    inputs:
+      tag:
+        description: "Version tag to build and attach, e.g. v0.8.0"
+        required: true
+        type: string
 
 permissions:
-  contents: write # required to create the GitHub Release
+  contents: write # required to create/update the GitHub Release
 
 jobs:
   release:
     name: Build & publish (macOS universal)
     runs-on: macos-latest
     steps:
+      # `inputs.tag` is set when release-please calls us. On a hand-pushed tag the
+      # inputs context is empty, so fall back to the ref that triggered the run.
+      # Everything downstream reads the tag from here, never from the ref.
+      - name: Resolve version from tag
+        id: ver
+        run: |
+          TAG="${{ inputs.tag || github.ref_name }}"   # e.g. v0.8.0
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "num=${TAG#v}" >> "$GITHUB_OUTPUT"      # 0.8.0 (no leading v) for the plist
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          ref: ${{ steps.ver.outputs.tag }} # build the tagged commit, not whatever main is now
           fetch-depth: 0 # full history + the annotated tag object, so we can read its message below
 
       - name: Set up Go
@@ -45,27 +71,24 @@ jobs:
           go install github.com/wailsapp/wails/v2/cmd/wails@v2.12.0
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
-      - name: Resolve version from tag
-        id: ver
-        run: |
-          TAG="${GITHUB_REF_NAME}"            # e.g. v0.2.0
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          echo "num=${TAG#v}" >> "$GITHUB_OUTPUT"  # 0.2.0 (no leading v) for the plist
-
-      # Curated release highlights come from the annotated tag's message body (the
-      # text after the tag's subject line). Lightweight tags have no body, so this
-      # is empty and the notes fall back to just the auto-generated changelog.
+      # Escape-hatch path only: curated highlights come from the annotated tag's
+      # message body. release-please creates lightweight tags and writes the real
+      # changelog into the release itself, so this is empty there — which is what
+      # we want, since the notes are already in place.
       - name: Extract release highlights from tag
         id: notes
         run: |
-          BODY="$(git for-each-ref "refs/tags/${GITHUB_REF_NAME}" --format='%(contents:body)')"
+          BODY="$(git for-each-ref "refs/tags/${{ steps.ver.outputs.tag }}" --format='%(contents:body)')"
           {
             echo "highlights<<__NOTES_EOF__"
             echo "$BODY"
             echo "__NOTES_EOF__"
           } >> "$GITHUB_OUTPUT"
 
-      # Stamp the macOS plist version so Finder "Get Info" matches the tag.
+      # Stamp the macOS plist version so Finder "Get Info" matches the tag. On the
+      # release-please path the committed wails.json already carries this version
+      # (see extra-files in release-please-config.json); re-stamping from the tag
+      # keeps the hand-tagged path correct too, and costs nothing.
       - name: Stamp plist version
         env:
           NUM: ${{ steps.ver.outputs.num }}
@@ -90,11 +113,14 @@ jobs:
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.ver.outputs.tag }} # explicit: on workflow_call the ref is a branch, not the tag
           files: ${{ steps.pkg.outputs.zip }}
-          generate_release_notes: true
+          # On the release-please path the Release already exists with the generated
+          # changelog, so append the install notes rather than clobbering it. On the
+          # hand-tagged path nothing exists yet, so let GitHub write its auto-notes.
+          append_body: true
+          generate_release_notes: ${{ inputs.tag == '' }}
           body: |
-            ## Mogi ${{ steps.ver.outputs.tag }}
-
             ${{ steps.notes.outputs.highlights }}
 
             macOS universal build — runs on Apple Silicon and Intel Macs.

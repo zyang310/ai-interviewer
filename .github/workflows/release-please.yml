@@ -1,0 +1,60 @@
+# Release Please — turns conventional commits into versions, changelogs, and tags.
+#
+# Purpose: take the manual arithmetic out of releasing. On every push to main it
+# reads the commit subjects since the last release and maintains a standing
+# "Release PR" that bumps the version and writes CHANGELOG.md. Nothing ships
+# while that PR sits open — merging it is the deliberate act that cuts a release.
+#
+#     fix:       →  patch   (0.8.0 → 0.8.1)
+#     feat:      →  minor   (0.8.1 → 0.9.0)
+#     feat!:     →  major   (0.9.0 → 1.0.0)   ← also `BREAKING CHANGE:` in the body
+#     chore/docs/refactor/test/ci  →  no release (they ride along in the changelog)
+#
+# So a bug fix must be committed as `fix:`, not `chore:` — the prefix is now load
+# bearing, not decoration. To force a specific version regardless of the commits
+# (e.g. declaring 1.0.0), add a `Release-As: 1.0.0` footer to a commit message.
+#
+# Why batch into a PR instead of releasing every push: the app is unsigned, so
+# every update costs the user a re-download plus the Gatekeeper right-click dance.
+# Releasing per-commit would multiply that friction. See docs/ci-cd-and-auto-update.md.
+name: Release Please
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write # create the release commit, tag, and GitHub Release
+  pull-requests: write # create/update the standing Release PR
+
+jobs:
+  release-please:
+    name: Maintain Release PR
+    runs-on: ubuntu-latest # no build here — this job only talks to the GitHub API
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - name: Run release-please
+        id: release
+        uses: googleapis/release-please-action@v4
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  # When the Release PR is merged, release-please creates the tag AND a GitHub
+  # Release holding the changelog — but that release has no app attached yet.
+  #
+  # We call release.yml directly rather than letting its `on: push: tags` trigger
+  # fire, because GitHub deliberately does NOT start workflows for events pushed
+  # with the automatic GITHUB_TOKEN (a loop guard). The tag lands, the tag event
+  # never arrives. Chaining the workflow here is the fix that needs no PAT.
+  build:
+    name: Attach macOS build
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    uses: ./.github/workflows/release.yml
+    permissions:
+      contents: write # reusable workflows run with the caller's permissions
+    with:
+      tag: ${{ needs.release-please.outputs.tag_name }}

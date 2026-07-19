@@ -102,7 +102,7 @@ All local state lives in one SQLite file, created on first launch (`store.Open`,
 
 - **`sessions`** — one row per interview: `id`, `problem_id` (`""` for screen-driven; carries the company slug for Company Practice), `model`, `started_at`, `ended_at`, `problem_title` / `difficulty` (AI-derived for screen-driven; **seeded from the assigned problem** for Company Practice, and preserved by the end-of-session labeling call), the `final_code` snapshot (text transcription of the candidate's final on-screen solution, captured at session end), the cached `debrief` JSON (generated on first open), and `company` / `mode` (`"single"`/`"mock"`, set only for Company Practice so History can badge them). Written by `CreateSession` (on start) and `EndSession` (stamps `ended_at`); labeled + code-snapshotted by `UpdateSessionMeta`; company-tagged by `SetSessionCompany`; debrief cached by `SaveSessionDebrief`; removed by `DeleteSession`.
 - **`messages`** — one row per turn (user + interviewer): `role`, `content`, `has_image`, `created_at`. Written by `AddMessage` for **both** turns of every `SendMessage` — this is the stored transcript. **Text only; screenshots are never persisted** (they live in memory during the live session, then are discarded).
-- **`preferences`** — a generic key-value store ([../internal/store/preferences.go](../internal/store/preferences.go)) for settings **and** API keys (stored locally, unencrypted — see roadmap Phase 4).
+- **`preferences`** — a generic key-value store ([../internal/store/preferences.go](../internal/store/preferences.go)) for settings **and** API keys (stored locally, unencrypted — see roadmap Phase 4). It also holds the **managed namespace** ([../internal/store/managed.go](../internal/store/managed.go)): `managed_*_api_key`, `managed_session_token`, `managed_email`, `managed_pinned_model`. Two namespaces, one table, **no schema change** — which is what lets a tester flip between managed and BYOK without either set of keys disturbing the other. `key_mode` (`"byok"` | `"managed"`) selects which namespace is live.
 
 The session/message **write** path (`CreateSession` / `AddMessage` / `EndSession`) predates the history feature — the data was always being recorded; History (plus `DeleteSession` / `UpdateSessionMeta` and the two new `sessions` columns) is what surfaces and manages it. Nothing in `data.db` is uploaded — the only network calls are the live AI/voice API requests.
 
@@ -112,8 +112,19 @@ These bound methods are callable from TypeScript as async functions via `lib/wai
 
 ```go
 // Auth / keys   (OAuth PKCE is planned — Phase 4)
-func (a *App) GetAuthStatus() models.AuthStatus            // openRouterConfigured / elevenLabsConfigured
-func (a *App) SetAPIKey(provider, key string) error        // "openrouter" or "elevenlabs"
+// AuthStatus is mode-aware: the three *Configured bools report whichever key
+// namespace is active (BYOK or managed), so every existing gate works unchanged
+// in either mode. It also carries keyMode / managedActive / managedEmail /
+// pinnedModel. The managed session token never crosses the boundary.
+func (a *App) GetAuthStatus() models.AuthStatus            // *Configured + keyMode/managedActive/managedEmail/pinnedModel
+func (a *App) SetAPIKey(provider, key string) error        // "openrouter", "google", or "elevenlabs" (always writes the BYOK namespace)
+
+// Managed test accounts (invite + email OTP → developer-funded keys).
+// Three bindings only; the mode itself is a Preferences field flipped through
+// the existing UpdatePreferences. See managed-keys-plan.md.
+func (a *App) RequestTestCode(email, inviteCode string) error       // POST /activate — mails a 6-digit code
+func (a *App) ActivateTestAccount(email, code string) (models.AuthStatus, error)  // POST /verify — stores keys + pin, returns fresh status
+func (a *App) SignOutTestAccount() (models.AuthStatus, error)       // device-local: wipes the managed namespace, back to BYOK
 
 // Interview
 func (a *App) StartSession(model string) (models.Session, error)  // no problemID — screen-driven
@@ -183,6 +194,54 @@ func (a *App) PreviewVoice(voiceID string) (string, error)                  // s
 func (a *App) GetHotkeyStatus() hotkey.Status   // running/hookEnabled/spec/label/goos — drives the macOS permission hint
 func (a *App) OpenInputMonitoringSettings()     // macOS: open System Settings → Privacy & Security → Input Monitoring
 ```
+
+### Wails events (backend → frontend)
+
+| Event | Emitted by | Frontend reaction |
+|---|---|---|
+| `ptt:down` | `internal/hotkey` on each hotkey press | Toggle the voice recorder |
+| `managed:changed` | `startup`'s launch key-refresh, when the managed state actually moved | Refetch `GetAuthStatus` + `GetPreferences`; show the `notice` if non-empty |
+
+`managed:changed` is what makes the kill switch and per-tester revocation feel
+graceful rather than broken: the refresh runs in a goroutine at startup, and only
+emits when something really changed (a sign-out, or a pinned model that moved),
+so a normal launch is silent.
+
+## Managed test accounts (data flow)
+
+The access service (`access-service/`, a separate Go module deployed to Cloud
+Run) hands out **developer-funded API keys**; it never proxies interview
+traffic, so screenshots and audio still go straight from the app to the
+providers and the privacy story is unchanged.
+
+```
+Setup → InviteActivation ──RequestTestCode──► POST /activate  (invite checked BEFORE any mail)
+                                                    │
+                                            Resend ─┴─► 6-digit OTP to the tester
+        InviteActivation ──ActivateTestAccount──► POST /verify
+                                                    │  consume 1 invite use (Firestore txn)
+                                                    │  mint a $3-capped OpenRouter key (per tester)
+                                                    ▼
+                              { token, keys{openrouter, google, elevenlabs, pinnedModel} }
+                                                    │
+                    internal/service/account.go ────┴─► store managed_* rows, KeyMode="managed",
+                                                        re-resolve the provider registry
+every launch:  startup → Account.Refresh ──GET /keys (Bearer token)──► 200 upsert
+                                                        401/403 → purge + "managed:changed"
+                                                        5xx/offline → keep cached keys
+```
+
+Three invariants worth knowing:
+
+- **`applyKeyMode` is the single resolution rule.** Every mutating path
+  (activate, sign-out, refresh, a KeyMode flip, `SetAPIKey`, `ClearAllData`)
+  ends with *provider registry ≡ store + mode*.
+- **The server is the authority on the model.** `resolveModel` pins managed
+  sessions to `managed_pinned_model`, so a cohort's feedback is comparable; the
+  pin lives in a Firestore doc and changes without an app release.
+- **Voice is guarded in the backend, mirrored in the UI.** Managed mode forces
+  Google TTS (the shared ElevenLabs key is STT-scoped and would 4xx) and filters
+  the voice catalog; hiding the premium tile in Settings is presentation only.
 
 ## AI interviewer system prompt (core behavior)
 

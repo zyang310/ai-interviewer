@@ -66,10 +66,40 @@ can download it."
 ### Versioning: tags are the source of truth
 
 We use [Semantic Versioning](https://semver.org): `vMAJOR.MINOR.PATCH` (e.g. `v0.2.0`).
-The version lives in exactly one place — a **git tag** — and flows everywhere else from
-there. There is deliberately no version number hard-coded in the source: a release is
-"whatever tag you pushed," which means cutting one is a single command and the version can
-never drift out of sync with what was actually built.
+The version that gets **built** lives in exactly one place — a **git tag** — and flows
+everywhere else from there. There is deliberately no version number compiled in from
+source: a release is "whatever tag was pushed," so the version can never drift out of sync
+with what was actually built.
+
+What the tag *doesn't* tell you is what the **next** version should be. That used to be a
+judgement call made at `git tag` time, which is exactly the kind of manual step that
+quietly goes wrong (ship a breaking change as a patch, or forget a release entirely).
+So the next number is now **derived from the commit messages** by
+[release-please](https://github.com/googleapis/release-please), using the
+[Conventional Commits](https://www.conventionalcommits.org) prefixes this repo already
+writes:
+
+| Commit prefix | Bump | Example |
+|---|---|---|
+| `fix:` | patch | 0.8.0 → 0.8.1 |
+| `feat:` | minor | 0.8.1 → 0.9.0 |
+| `feat!:` / `BREAKING CHANGE:` in body | major | 0.9.0 → 1.0.0 |
+| `chore:` `docs:` `refactor:` `test:` `ci:` | *none* | no release; listed in the changelog only |
+
+The consequence worth internalizing: **the commit prefix is now load-bearing.** A
+user-facing bug fix committed as `chore:` will not ship. (This repo has historical
+`chore: fix bug` commits from before the change — that habit has to go.)
+
+Deriving the version means release-please needs a little committed bookkeeping to know
+where it is: `.release-please-manifest.json` (the last released version) and `version.txt`.
+That's a real trade — two files that restate the tag — bought in exchange for never doing
+semver arithmetic by hand, and for a `CHANGELOG.md` that writes itself. Note the *build*
+still reads the tag, so those files can't corrupt a build; at worst they'd propose a wrong
+next number, which is visible in the Release PR before anything ships.
+
+Declaring a version that the commits *don't* imply — most obviously 1.0.0, which for an
+app is a product decision, not a semantic one — is done with a `Release-As: 1.0.0` footer
+in a commit message.
 
 ### macOS distribution: signing, notarization, Gatekeeper
 
@@ -119,30 +149,55 @@ Developer account ever enters the picture.
 ## How the pipeline works, end-to-end
 
 ```
-   ┌──────────────────────────────┐         ┌──────────────────────────────┐
-   │  git push  →  main            │         │  git push  →  tag vX.Y.Z      │
-   └───────────────┬──────────────┘         └───────────────┬──────────────┘
-                   ▼                                         ▼
-        .github/workflows/build.yml             .github/workflows/release.yml
-        runner: macos-latest                    runner: macos-latest
-        ├─ npm ci && npm run build → dist        ├─ stamp wails.json productVersion
-        ├─ go build ./...                        ├─ wails build darwin/universal
-        ├─ go test ./...                         │     -ldflags main.version=vX.Y.Z
-        ├─ gofmt -l .                            ├─ ditto  → Mogi-vX.Y.Z.zip
-        ├─ wails build darwin/universal -s       └─ softprops/action-gh-release
-        │     -ldflags main.version=dev-<sha>            │
-        └─ upload-artifact (repo-only, expires)          ▼
-                   │                              ┌─────────────────────────────┐
-                   ▼                              │  Public GitHub Release      │
-        "did this commit build?"                 │  • anyone can download .zip │
-                                                  │  • the updater checks this  │
-                                                  └─────────────────────────────┘
+   ┌────────────────────────────────────────────────────────────────────────┐
+   │                        git push  →  main                               │
+   └──────────────┬──────────────────────────────────┬──────────────────────┘
+                  ▼                                   ▼
+       .github/workflows/build.yml      .github/workflows/release-please.yml
+       runner: macos-latest             runner: ubuntu-latest  (API calls only)
+       ├─ npm ci && npm run build       ├─ read conventional commits since
+       ├─ go build ./...                │    the last release
+       ├─ go test ./...                 └─ open/update the standing Release PR
+       ├─ gofmt -l .                         · bumps version.txt + wails.json
+       ├─ wails build …dev-<sha> -s          · writes CHANGELOG.md
+       └─ upload-artifact (repo-only)             │
+                  │                                │   ◄── you merge it when ready
+                  ▼                                ▼
+       "did this commit build?"        tag vX.Y.Z  +  GitHub Release (changelog,
+                                                       no app attached yet)
+                                                   │
+                                                   │  calls  (workflow_call)
+                                                   ▼
+                                        .github/workflows/release.yml
+                                        runner: macos-latest
+                                        ├─ stamp wails.json productVersion
+                                        ├─ wails build darwin/universal
+                                        │     -ldflags main.version=vX.Y.Z
+                                        ├─ ditto  → Mogi-vX.Y.Z.zip
+                                        └─ attach .zip + append install notes
+                                                   │
+                                                   ▼
+                                     ┌─────────────────────────────┐
+                                     │  Public GitHub Release      │
+                                     │  • anyone can download .zip │
+                                     │  • the updater checks this  │
+                                     └─────────────────────────────┘
 ```
 
-Both build workflows do the same macOS build; they differ in **trigger**, **version**, and
-**where the output goes**. `main` pushes produce a throwaway `dev-<sha>` build as a
-repo-only artifact (continuous proof it compiles). Tag pushes produce a real `vX.Y.Z`
-build published as a public Release.
+`build.yml` and `release.yml` run the same macOS build; they differ in **trigger**,
+**version**, and **where the output goes**. Every `main` push produces a throwaway
+`dev-<sha>` build as a repo-only artifact (continuous proof it compiles). A merged Release
+PR produces a real `vX.Y.Z` build published as a public Release.
+
+> **Why release-please *calls* release.yml instead of letting the tag trigger it.**
+> `release.yml` still declares `on: push: tags`, but that event will never fire here:
+> GitHub deliberately does **not** start workflows for pushes made with the automatic
+> `GITHUB_TOKEN`, as a guard against workflows infinitely triggering each other. The tag
+> lands; the tag event never arrives. Two ways out — hand release-please a Personal Access
+> Token so the push looks human, or chain the workflows explicitly. We chain: `release.yml`
+> also declares `on: workflow_call`, so release-please invokes it directly as a reusable
+> workflow. No PAT to create, store, or rotate, and the build logic still exists once. The
+> tag trigger stays as a hand-operated escape hatch.
 
 > **Why the frontend builds first.** `main.go` embeds the compiled UI with
 > `//go:embed all:frontend/dist`, so that directory must exist before *any*
@@ -237,9 +292,23 @@ personal project that's the right call; for a paid product you'd sign and adopt 
 **Tag-driven releases, not "publish every push to `main`."** Publishing a release on
 every commit would spam the releases page and, worse, break the updater: semver comparison
 needs clean, monotonic version numbers, and GitHub's "latest release" endpoint ignores
-pre-releases anyway. So `main` pushes only *verify* (artifact), and a human cuts a real
-release by pushing a tag. The cost is one extra command (`git tag … && git push --tags`);
-the benefit is a coherent version line and a meaningful "latest."
+pre-releases anyway. So `main` pushes only *verify* (artifact), and a release is a separate,
+deliberate act.
+
+**Computed versions, but a human-gated release.** These are two decisions, and it's worth
+separating them. *Computing* the version from commit messages removes hand arithmetic and a
+hand-written changelog — pure upside, no judgement lost, since the prefixes were already
+being written. *Publishing* is still gated on a human merging the Release PR, and that
+gate is deliberate: the app is **unsigned**, so every update a user installs costs them a
+re-download plus the Gatekeeper right-click dance. Auto-tagging each `fix:` would multiply
+that friction across users for no benefit. Batching several commits into one release is
+therefore not laziness — it's the correct response to the distribution constraint. (If
+signing ever lands and updates become silent, the argument for batching weakens and
+auto-release-on-every-fix becomes reasonable.)
+
+The standing Release PR also doubles as a **preview**: the proposed version number and the
+generated changelog are visible, and `build.yml` runs against them, before anything is
+public.
 
 **Notify-and-download, not silent.** Covered above — forced by "unsigned," and the
 robust option regardless.
@@ -268,15 +337,33 @@ change to the workflows.
 
 ## Operational runbook
 
-**Cut a release**
+**Cut a release** — there is nothing to type. Commit with conventional prefixes and push to
+`main`; release-please keeps a PR titled **`chore(main): release X.Y.Z`** open with the
+computed version and changelog. Review it, **merge it**, and the tag, the GitHub Release,
+and the attached `.zip` follow automatically. Merging that PR *is* cutting the release.
 
-```bash
-git tag v0.2.0
-git push origin v0.2.0      # triggers release.yml → builds + publishes the Release
+To override the computed version (declaring 1.0.0, or forcing a patch), add a footer to any
+commit that will be in the release:
+
+```
+Release-As: 1.0.0
 ```
 
-Pick the version with semver: bug-fix → bump PATCH, new feature → bump MINOR, breaking →
-bump MAJOR. The tag is the version; nothing else needs editing.
+**Release something that isn't shipping** — if the Release PR isn't appearing, the commits
+since the last release are probably all non-releasing types (`chore:`, `docs:`, `refactor:`).
+That's working as intended; a user-facing fix needs to be committed as `fix:`.
+
+**Escape hatch: release by hand** — still supported, for a hotfix or to re-run a release
+whose build failed. A hand-pushed tag triggers `release.yml` directly, which creates the
+Release itself:
+
+```bash
+git tag v0.8.1
+git push origin v0.8.1
+```
+
+If you do this, bump `.release-please-manifest.json` and `version.txt` to match, or
+release-please will propose a stale next version.
 
 **Check a `main` build compiled** — open the repo's **Actions** tab, find the latest
 *Build* run; its artifact (`Mogi-macos-universal`) is the test build.

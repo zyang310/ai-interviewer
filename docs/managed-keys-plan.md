@@ -4,9 +4,14 @@
 > redeems an **invite code + email OTP** and the app fetches developer-funded keys and inserts them
 > itself — sign in, and it just works. **BYOK stays a first-class equal mode**, untouched. The
 > backend is a single small "access service" whose auth/infra is deliberately the embryo of the
-> eventual paid tier. **Status: Phase 0 (access service) implemented; app integration not started.**
-> *No payments in this phase — the developer eats a capped ~$20/month.*
-> Step-by-step build plan & progress → [managed-keys-implementation.md](managed-keys-implementation.md).
+> eventual paid tier. **Status: ✅ implemented and deployed (2026-07-19)** — the access service is
+> live on Cloud Run (Firestore + Secret Manager + real OTP mail), the app ships pointing at it, and
+> the kill switch, per-tester revocation, and real key minting have all been drilled against
+> production. *No payments in this phase — the developer eats a capped ~$20/month.*
+> Step-by-step build plan, every live verification, and the bugs they caught →
+> [managed-keys-implementation.md](managed-keys-implementation.md).
+> Day-to-day operation (kill switch, minting invites, revoking a tester, rotation) →
+> [../access-service/README.md](../access-service/README.md).
 
 ## Context
 
