@@ -19,10 +19,13 @@ import (
 )
 
 const (
-	// DefaultURL is the access service's base URL. It is a placeholder until the
-	// Cloud Run service is deployed (Phase 3.5); local runs override it with the
-	// MOGI_ACCESS_URL env var (see NewApp) to point at a dev service.
-	DefaultURL = "https://mogi-access.example.com"
+	// DefaultURL is the access service's base URL — the deployed Cloud Run
+	// service (region us-central1, project ai-interviewer-500220). Local runs
+	// override it with the MOGI_ACCESS_URL env var (see NewApp) to point at a
+	// dev service; changing it here requires a new app release, so the
+	// console-editable knobs (kill switch, pinned model) deliberately live in
+	// the service's Firestore config instead.
+	DefaultURL = "https://mogi-access-zdz7y265mq-uc.a.run.app"
 	// httpTimeout bounds every call. Activation sits behind a user click and the
 	// launch refresh must never block startup, so keep it short.
 	httpTimeout = 15 * time.Second

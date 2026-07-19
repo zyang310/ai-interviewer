@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -316,4 +317,87 @@ func TestKeysPhaseOff(t *testing.T) {
 		t.Fatalf("keys phase-off status = %d, want 403", w.Code)
 	}
 	assertErrorBody(t, w)
+}
+
+// errStore wraps a real store and lets selected reads fail with an
+// infrastructure error, standing in for a Firestore outage (the memory store
+// itself cannot fail, so the infra-vs-NotFound distinction is only reachable
+// through a wrapper). Everything else delegates.
+type errStore struct {
+	store.Store
+	failGetSession error
+	failGetTester  error
+}
+
+func (e *errStore) GetSession(ctx context.Context, tokenHash string) (store.Session, error) {
+	if e.failGetSession != nil {
+		return store.Session{}, e.failGetSession
+	}
+	return e.Store.GetSession(ctx, tokenHash)
+}
+
+func (e *errStore) GetTester(ctx context.Context, email string) (store.Tester, error) {
+	if e.failGetTester != nil {
+		return store.Tester{}, e.failGetTester
+	}
+	return e.Store.GetTester(ctx, email)
+}
+
+// TestKeysStoreErrorIs500NotSignOut pins the infra-vs-NotFound distinction on
+// /keys: a store outage must surface as a 500 (the app keeps its cached keys),
+// never a 401 (which the app treats as revoked and purges the account).
+func TestKeysStoreErrorIs500NotSignOut(t *testing.T) {
+	st := store.NewMemory("MOGI-DEV", activeConfig())
+	es := &errStore{Store: st}
+	m := &recordingMailer{}
+	h := New(es, m, &fakeMinter{}, Config{})
+
+	email := "blip@b.com"
+	doJSON(t, h, "POST", "/activate", activateRequest{Email: email, InviteCode: "MOGI-DEV"}, nil)
+	w := doJSON(t, h, "POST", "/verify", verifyRequest{Email: email, Code: m.lastCode}, nil)
+	var vr verifyResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &vr); err != nil {
+		t.Fatalf("decode verify: %v", err)
+	}
+
+	es.failGetSession = errors.New("rpc error: firestore unavailable")
+	w = doJSON(t, h, "GET", "/keys", nil, map[string]string{"Authorization": "Bearer " + vr.Token})
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("store-outage status = %d, want 500 (a 401 would sign the tester out)", w.Code)
+	}
+	assertErrorBody(t, w)
+
+	// The same token works again once the backend recovers — nothing was purged.
+	es.failGetSession = nil
+	w = doJSON(t, h, "GET", "/keys", nil, map[string]string{"Authorization": "Bearer " + vr.Token})
+	if w.Code != http.StatusOK {
+		t.Fatalf("post-outage status = %d, want 200 (same token still valid)", w.Code)
+	}
+}
+
+// TestVerifyStoreErrorDoesNotMint pins the distinction on /verify's tester
+// lookup: an outage must not be mistaken for "first-time tester", which would
+// consume an invite use and mint (then overwrite) an OpenRouter key.
+func TestVerifyStoreErrorDoesNotMint(t *testing.T) {
+	st := store.NewMemory("MOGI-DEV", activeConfig())
+	es := &errStore{Store: st}
+	m := &recordingMailer{}
+	minter := &fakeMinter{}
+	h := New(es, m, minter, Config{})
+
+	email := "outage@b.com"
+	doJSON(t, h, "POST", "/activate", activateRequest{Email: email, InviteCode: "MOGI-DEV"}, nil)
+
+	es.failGetTester = errors.New("rpc error: firestore unavailable")
+	w := doJSON(t, h, "POST", "/verify", verifyRequest{Email: email, Code: m.lastCode}, nil)
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("verify-during-outage status = %d, want 500", w.Code)
+	}
+	if minter.calls != 0 {
+		t.Fatalf("minter called %d times during the outage, want 0", minter.calls)
+	}
+	inv, err := st.GetInvite(context.Background(), "MOGI-DEV")
+	if err != nil || inv.Uses != 0 {
+		t.Fatalf("invite uses = %d (err %v), want 0 — an outage must not burn an invite use", inv.Uses, err)
+	}
 }

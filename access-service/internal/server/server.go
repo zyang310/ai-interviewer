@@ -9,7 +9,9 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"log"
 	"math/big"
 	"net/http"
 	"strings"
@@ -120,7 +122,7 @@ func (s *server) handleActivate(w http.ResponseWriter, r *http.Request) {
 	// Kill switch: no new activations when the test phase is off.
 	cfg, err := s.store.GetConfig(ctx)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal error")
+		internalError(w, err)
 		return
 	}
 	if !cfg.TestPhaseActive {
@@ -130,6 +132,10 @@ func (s *server) handleActivate(w http.ResponseWriter, r *http.Request) {
 
 	// Validate the invite BEFORE any rate-limit consumption or mail.
 	inv, err := s.store.GetInvite(ctx, code)
+	if err != nil && !errors.Is(err, store.ErrNotFound) {
+		internalError(w, err)
+		return
+	}
 	if err != nil || !inv.Active || inv.Uses >= inv.MaxUses {
 		writeError(w, http.StatusBadRequest, "invalid or exhausted invite code")
 		return
@@ -146,7 +152,7 @@ func (s *server) handleActivate(w http.ResponseWriter, r *http.Request) {
 
 	otp, err := genOTP()
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal error")
+		internalError(w, err)
 		return
 	}
 	rec := store.OTP{
@@ -156,10 +162,11 @@ func (s *server) handleActivate(w http.ResponseWriter, r *http.Request) {
 		ExpiresAt:  time.Now().Add(otpTTL),
 	}
 	if err := s.store.PutOTP(ctx, rec); err != nil {
-		writeError(w, http.StatusInternalServerError, "internal error")
+		internalError(w, err)
 		return
 	}
 	if err := s.mailer.SendOTP(ctx, email, otp); err != nil {
+		log.Printf("server: send OTP mail: %v", err)
 		writeError(w, http.StatusInternalServerError, "failed to send verification code")
 		return
 	}
@@ -186,6 +193,10 @@ func (s *server) handleVerify(w http.ResponseWriter, r *http.Request) {
 	emailHash := hashString(email)
 
 	otp, err := s.store.GetOTP(ctx, emailHash)
+	if err != nil && !errors.Is(err, store.ErrNotFound) {
+		internalError(w, err)
+		return
+	}
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "no pending code for this email — request a new one")
 		return
@@ -211,15 +222,26 @@ func (s *server) handleVerify(w http.ResponseWriter, r *http.Request) {
 	_ = s.store.DeleteOTP(ctx, emailHash)
 
 	// Reuse an existing tester's key so re-verifying never mints twice or
-	// consumes a second invite use; only first-time testers mint.
+	// consumes a second invite use; only first-time testers mint. An infra
+	// error must NOT fall into the mint path — it would burn an invite use and
+	// overwrite the existing tester's key.
 	tester, terr := s.store.GetTester(ctx, email)
+	if terr != nil && !errors.Is(terr, store.ErrNotFound) {
+		internalError(w, terr)
+		return
+	}
 	if terr != nil || tester.ORKey == "" {
 		if err := s.store.ConsumeInvite(ctx, otp.InviteCode); err != nil {
+			if !errors.Is(err, store.ErrNotFound) && !errors.Is(err, store.ErrInviteUnavailable) {
+				internalError(w, err)
+				return
+			}
 			writeError(w, http.StatusBadRequest, "invite code is no longer available")
 			return
 		}
 		key, hash, err := s.minter.Mint(ctx, email, s.cfg.ORKeyLimitUSD)
 		if err != nil {
+			log.Printf("server: mint OpenRouter key: %v", err)
 			writeError(w, http.StatusInternalServerError, "could not provision access — please try again")
 			return
 		}
@@ -231,14 +253,14 @@ func (s *server) handleVerify(w http.ResponseWriter, r *http.Request) {
 			CreatedAt:  time.Now(),
 		}
 		if err := s.store.PutTester(ctx, tester); err != nil {
-			writeError(w, http.StatusInternalServerError, "internal error")
+			internalError(w, err)
 			return
 		}
 	}
 
 	token, err := genToken()
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal error")
+		internalError(w, err)
 		return
 	}
 	if err := s.store.PutSession(ctx, store.Session{
@@ -246,13 +268,13 @@ func (s *server) handleVerify(w http.ResponseWriter, r *http.Request) {
 		Email:     email,
 		CreatedAt: time.Now(),
 	}); err != nil {
-		writeError(w, http.StatusInternalServerError, "internal error")
+		internalError(w, err)
 		return
 	}
 
 	cfg, err := s.store.GetConfig(ctx)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal error")
+		internalError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, verifyResponse{Token: token, Keys: s.keysFor(tester, cfg)})
@@ -269,7 +291,15 @@ func (s *server) handleKeys(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx := r.Context()
 
+	// A backend error here must be a 500, not a 401: the app maps 401/403 to
+	// "revoked" and purges its managed keys, so conflating an infra blip with
+	// a bad token would sign testers out spuriously (on 5xx the app keeps its
+	// cached keys — the offline-grace path).
 	sess, err := s.store.GetSession(ctx, hashString(token))
+	if err != nil && !errors.Is(err, store.ErrNotFound) {
+		internalError(w, err)
+		return
+	}
 	if err != nil {
 		writeError(w, http.StatusUnauthorized, "invalid or expired session")
 		return
@@ -277,7 +307,7 @@ func (s *server) handleKeys(w http.ResponseWriter, r *http.Request) {
 
 	cfg, err := s.store.GetConfig(ctx)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal error")
+		internalError(w, err)
 		return
 	}
 	if !cfg.TestPhaseActive {
@@ -286,6 +316,10 @@ func (s *server) handleKeys(w http.ResponseWriter, r *http.Request) {
 	}
 
 	tester, err := s.store.GetTester(ctx, sess.Email)
+	if err != nil && !errors.Is(err, store.ErrNotFound) {
+		internalError(w, err)
+		return
+	}
 	if err != nil {
 		writeError(w, http.StatusUnauthorized, "invalid or expired session")
 		return
@@ -319,6 +353,17 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 
 func writeError(w http.ResponseWriter, status int, msg string) {
 	writeJSON(w, status, map[string]string{"error": msg})
+}
+
+// internalError logs the real error — the only server-side trace on Cloud Run
+// — and writes the generic 500 body (clients never see internals). It exists
+// because the Firestore store made infrastructure errors real (the memory
+// store cannot fail), and the handlers must keep them distinct from
+// ErrNotFound: an infra blip answered with 401/400 would spuriously sign
+// testers out or double-mint, while a 500 lets the app keep its cached keys.
+func internalError(w http.ResponseWriter, err error) {
+	log.Printf("server: internal error: %v", err)
+	writeError(w, http.StatusInternalServerError, "internal error")
 }
 
 // normalizeEmail is the single place emails are canonicalized, so hashing and

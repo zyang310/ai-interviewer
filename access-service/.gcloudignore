@@ -1,0 +1,5 @@
+# What NOT to upload to Cloud Build. The .env holds real API keys — it must
+# never leave this machine (secrets reach the service via Secret Manager).
+.env
+mogi-access
+ops/

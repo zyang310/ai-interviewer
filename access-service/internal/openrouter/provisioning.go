@@ -15,9 +15,12 @@ import (
 )
 
 const (
-	// keysURL is OpenRouter's provisioning endpoint (note the trailing slash);
-	// DELETE appends the key hash.
-	keysURL = "https://openrouter.ai/api/v1/keys/"
+	// keysURL is OpenRouter's provisioning endpoint. It must NOT have a
+	// trailing slash: POSTing to ".../keys/" returns 404 (GET 301-redirects,
+	// which Go would silently downgrade to a GET and turn a mint into a key
+	// list). Verified against the live API in Phase 3.6. DELETE appends
+	// "/" + the key hash.
+	keysURL = "https://openrouter.ai/api/v1/keys"
 	// httpTimeout bounds a mint/delete call, which sits on the /verify path.
 	httpTimeout = 30 * time.Second
 )
@@ -36,7 +39,11 @@ type KeyMinter interface {
 // key.
 type Client struct {
 	provisioningKey string
-	httpClient      *http.Client
+	// baseURL is the keys endpoint; a field only so tests can point it at an
+	// httptest server and assert the exact request shape (the wrong shape cost
+	// a 404 in 3.6). Production always uses keysURL.
+	baseURL    string
+	httpClient *http.Client
 }
 
 // NewClient creates a provisioning client. An empty key makes every call error;
@@ -44,6 +51,7 @@ type Client struct {
 func NewClient(provisioningKey string) *Client {
 	return &Client{
 		provisioningKey: provisioningKey,
+		baseURL:         keysURL,
 		httpClient:      &http.Client{Timeout: httpTimeout},
 	}
 }
@@ -63,7 +71,7 @@ func (c *Client) Mint(ctx context.Context, name string, limitUSD float64) (strin
 		return "", "", fmt.Errorf("openrouter: encode request: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, keysURL, bytes.NewReader(reqBody))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL, bytes.NewReader(reqBody))
 	if err != nil {
 		return "", "", fmt.Errorf("openrouter: build request: %w", err)
 	}
@@ -108,7 +116,7 @@ func (c *Client) Delete(ctx context.Context, hash string) error {
 		return fmt.Errorf("openrouter: provisioning key is not configured")
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, keysURL+hash, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, c.baseURL+"/"+hash, nil)
 	if err != nil {
 		return fmt.Errorf("openrouter: build request: %w", err)
 	}

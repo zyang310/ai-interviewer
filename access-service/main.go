@@ -133,7 +133,17 @@ func buildHandler(cfg config) (http.Handler, error) {
 			PinnedModel:     cfg.pinnedModel,
 		})
 	case "firestore":
-		return nil, fmt.Errorf("store %q not implemented yet (Phase 3.2)", cfg.store)
+		// TEST_PHASE_ACTIVE / PINNED_MODEL / DEV_INVITE_CODE env values are
+		// memory-store seeds only — in Firestore, config lives in the
+		// console-editable config/config doc and invites are minted as docs.
+		if cfg.gcpProject == "" {
+			return nil, fmt.Errorf("STORE=firestore requires GCP_PROJECT")
+		}
+		fs, err := store.NewFirestore(context.Background(), cfg.gcpProject)
+		if err != nil {
+			return nil, fmt.Errorf("firestore store: %w", err)
+		}
+		st = fs
 	default:
 		return nil, fmt.Errorf("unknown STORE %q (want memory|firestore)", cfg.store)
 	}

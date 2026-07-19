@@ -18,8 +18,24 @@
 > local e2e battery passed** against a live memory/log service under
 > `wails dev` — redeem, pinning, voice resolution, kill switch, BYOK
 > regression, sign-out, offline grace, Clear-All — which also closed 1.10's
-> deferred interactive gate and 2.3's live drive. **Not yet done: Phase 3**
-> (deploy, provider verification, prod e2e, docs).
+> deferred interactive gate and 2.3's live drive. **Phase 3 started
+> (2026-07-18): 3.1 ✅ complete** — both shared keys minted and verified live
+> (`access-service/ops/verify-providers.sh` **5/5**, incl. the named
+> checkpoint: EL TTS refused with 401 "missing the permission
+> text_to_speech"). **3.2 ✅ complete** — the Firestore store is implemented
+> and proven against the emulator (transactional invite race → exactly
+> MaxUses wins; live service smoke incl. the doc-edited kill switch flipping
+> `/keys` to 403 with no restart). **3.3 ◑ prepared** — `resend.go` verified
+> against current docs (no drift), full-stack `ops/smoke-resend.sh` ready;
+> the live smoke + domain decision need the owner-created Resend account.
+> **3.4 ✅ deployed** — live on Cloud Run at
+> `https://mogi-access-zdz7y265mq-uc.a.run.app` (Firestore + Secret Manager +
+> real OTP mail), full prod smoke green, kill-switch drill passed, and the
+> service left **dormant** until a real OpenRouter provisioning key replaces
+> the stub minter. **3.5 ✅** — the app now ships pointing at that URL
+> (`wails build` green, verified in the binary, live client probe passed).
+> Remaining: 3.6 (prod e2e + rotation drill), 3.7 (docs), 3.8 (cohort launch)
+> — all gated on the OpenRouter Management key.
 
 ## Context
 
@@ -421,28 +437,311 @@ planned except for the small as-built refinements noted per step.
 
 ## Phase 3 — Deploy, ops, docs — ☐ Not started
 
-- ☐ **3.1 Provider verification + shared keys** (verify-items 2+3): EL key
+- ✅ **3.1 Provider verification + shared keys** (verify-items 2+3): EL key
   STT-only + cap (**confirm the cap binds Scribe's dollar billing**); GCP key
   restricted to TTS+STT, pin quota knobs, budget alerts $10/$20.
   > **Checkpoint:** TTS with Google key succeeds; TTS with EL key **fails**
   > (STT-scoping proven — what makes the 1.8 guard correctness).
-- ☐ **3.2 Firestore impl.** `access-service/internal/store/firestore.go` (deps in
+  > **GCP half ✓ (2026-07-18), verified live. Findings:**
+  > - **Verify-item 3 resolved.** TTS exposes **only request-rate knobs** (per-
+  >   project + per-voice-family RPM, default 1000/min) — there is **no
+  >   character/day or spend quota**, so a low RPM cap is TTS's only real-time
+  >   dollar brake. STT v1 does have a true daily knob:
+  >   `AudiosecondsRequestsPerDayPerProject`, default 1,728,000 audio-s/day
+  >   (480 h!). Budget alerts lag billing by hours — they are detection, not
+  >   enforcement; enforcement = the quota caps + kill switch + rotation.
+  > - **Quotas pinned** (Cloud Quotas preferences, all granted immediately):
+  >   TTS `RequestsPerMinutePerProject` 1000→**10** (5 testers × 2 replies/min
+  >   fits; throttles a leaked key to ~$48/h even at max-size Neural2 requests),
+  >   STT `AudiosecondsRequestsPerDayPerProject` 1,728,000→**7,200** (2 h of
+  >   audio/day cohort-wide ≈ single-digit $/day worst case), STT
+  >   `DefaultRequestsPerMinutePerProject` 900→**60**.
+  > - **Shared key minted:** `mogi-managed-voice` in `ai-interviewer-500220`,
+  >   API-restricted to `texttospeech`+`speech`; key string lives only in
+  >   gitignored `access-service/.env` (`GOOGLE_SHARED_KEY`; → Secret Manager
+  >   in 3.4). Deliberately separate from the personal dev key ("API key 1")
+  >   so either rotates/revokes without touching the other.
+  > - **Budget:** `mogi-ai-interviewer-monthly` — $20/mo on the project's
+  >   billing account filtered to this project, thresholds 50% ($10) + 100%
+  >   ($20), default email recipients (billing admins).
+  > - **Checkpoint, Google half PASSED** via `access-service/ops/
+  >   verify-providers.sh` (mirrors the app's exact request bodies from
+  >   `internal/googletts` / `internal/voice`): Neural2 synthesize → 200;
+  >   LINEAR16 round-trip through STT → 200 with the synthesized phrase back
+  >   verbatim; Translate with the same key → **403 blocked** (restriction
+  >   binds).
+  > - **Verify-item 2 resolved (docs level).** `speech_to_text` is a standalone
+  >   per-key permission in the create-key API's enum → an STT-only key is
+  >   constructible. Whether the per-key cap binds Scribe depends on the
+  >   workspace's billing regime: on **subscription (credit) plans**, credits
+  >   are shared across every product and Scribe draws them (≈330 credits per
+  >   audio-minute), so a per-key monthly credit cap **does bind STT**; on
+  >   **usage-based API billing**, Scribe bills $0.22/h in dollars and the
+  >   guard is keeping the prepaid balance small — exactly the fallback the
+  >   plan anticipated. The dashboard's key-create modal shows which regime
+  >   applies.
+  > **EL half ✓ (2026-07-18).** STT-only key minted in the dashboard and
+  > dropped into `access-service/.env`; `ops/verify-providers.sh` now passes
+  > **5/5**. The named checkpoint closed with the ideal proof: EL TTS → **401**
+  > `"The API key you used is missing the permission text_to_speech to execute
+  > this operation"` — a *scope* refusal, not a balance/auth accident — and
+  > Scribe STT returned the round-trip phrase verbatim. The 1.8
+  > forced-Google-TTS guard is thereby a correctness rule, not a preference.
+- ✅ **3.2 Firestore impl.** `access-service/internal/store/firestore.go` (deps in
   the service module only); `ConsumeInvite` via `RunTransaction`; config from a
   `config/config` doc; wire `STORE=firestore`.
-  > **Checkpoint:** memory suite green with **zero interface change**; root
-  > module untouched.
-- ☐ **3.3 Resend** (verify-item 4): smoke via `onboarding@resend.dev`; verify
+  > **Checkpoint ✓ (2026-07-18)** — memory suite green with **zero interface
+  > change** (`store.go` untouched); root module untouched (`go.mod`/`go.sum`
+  > clean, root build+tests green). Proven beyond the gate against the
+  > **Firestore emulator**: 5 integration tests in `firestore_test.go` (they
+  > skip without `FIRESTORE_EMULATOR_HOST`, keeping the normal suite
+  > cloud-free), incl. a 10-goroutine race on a 3-use invite → **exactly 3
+  > wins, final Uses 3** (the transaction guarantee 0.3 predicted),
+  > microsecond timestamp round-trip fidelity, idempotent OTP delete, and
+  > missing `config/config` → loud error. Then a **live service smoke**
+  > (`STORE=firestore GCP_PROJECT=… go run .` against the emulator):
+  > activate→verify→keys green with the pinned model coming back **from the
+  > seeded doc** (a distinctive value, not the env default — config provably
+  > reads Firestore), invite `Uses` incremented to exactly 1, and the kill
+  > switch flipped **by editing the doc while the service ran** → `/keys` 403
+  > immediately, no restart — the console-editability the design promised.
+  > **As-built:** (1) one collection per record type (`invites`/`otps`/
+  > `testers`/`sessions`, keyed by the memory maps' natural keys) plus
+  > `config/config`; structs stored under their Go field names (no tags) so
+  > the Firestore console matches `store.go` one-to-one. (2) Missing
+  > `config/config` fails loudly — and effectively closed — rather than
+  > inventing defaults. (3) No `Close`: the client lives for the process
+  > lifetime (the Store interface has no teardown; Cloud Run reaps it).
+  > (4) **The swap surfaced a latent handler conflation:** with an infallible
+  > memory store, "not found" and "backend down" were indistinguishable — on
+  > Firestore, an infra blip would have 401'd `/keys` (the app purges managed
+  > keys on 401/403 ⇒ spurious device sign-out) or fallen into `/verify`'s
+  > first-timer path (burning an invite use and overwriting the tester's
+  > minted key). Handlers now branch on `errors.Is(err, store.ErrNotFound)`
+  > at every read site and answer infra errors with a logged 500 (new
+  > `internalError` helper — 5xx paths previously logged nothing, which on
+  > Cloud Run means no trace at all); the wire contract is unchanged and the
+  > app already treats 5xx as "keep cached keys" (the offline-grace path).
+  > Pinned by two new handler tests over an error-injecting store wrapper:
+  > outage ≠ sign-out (same token works after recovery), outage ≠ mint
+  > (minter uncalled, invite unburned).
+- ✅ **3.3 Resend** (verify-item 4): smoke via `onboarding@resend.dev`; verify
   domain (SPF/DKIM), set `MAIL_FROM`, test spam placement. GitHub device flow is
   the documented fallback.
-- ☐ **3.4 Deploy.** Secrets → Secret Manager; `gcloud run deploy mogi-access
+  > **Done (2026-07-18):** `trymogi.dev` bought + verified in Resend, real OTP
+  > mail from `otp@trymogi.dev` lands in the Gmail inbox. Two optional polish
+  > items (DMARC TXT, corporate-inbox spot-check) are noted below but don't
+  > gate deploy.
+  > **Prepared (2026-07-18); the live half is blocked on the Resend account
+  > (owner-only, I cannot create accounts).** `resend.go` verified against the
+  > current API docs — endpoint, Bearer auth, `"Name <addr>"` from,
+  > `to`-as-array, `text` body all match: no drift, zero code change. Facts
+  > that shape the rest (verify-item 4, docs level): the sandbox sender
+  > (`onboarding@resend.dev`) needs no domain but delivers **only to the
+  > account owner's own address** — smoke-only, useless for testers; real
+  > cohort mail needs a verified domain (SPF TXT + feedback MX on a `send.`
+  > subdomain + DKIM TXT — the dashboard lists the exact records; subdomain
+  > sending recommended over apex) or the device-flow fallback; the free tier
+  > (100/day, 3,000/mo, 1 domain, 10 req/s) sits far above the service's own
+  > /activate rate limits. New `ops/smoke-resend.sh` runs the smoke
+  > **full-stack** — boots the service with `MAILER=resend` and drives
+  > `/activate`, so the mail goes through the production mailer path (204 ⇒
+  > Resend accepted our message); the same script re-runs for the
+  > verified-domain and spam-placement checks.
+  > **Sandbox smoke ✓ (2026-07-18):** with the owner-created key,
+  > `ops/smoke-resend.sh zyang3104@gmail.com` → `/activate` **204** — Resend
+  > accepted the OTP mail built by the production mailer path. The first run
+  > was accidentally instructive: its recipient defaulted to `git config
+  > user.email` (a different address), and Resend answered 403 *"You can only
+  > send testing emails to your own email address"* — the sandbox restriction
+  > **proven on the wire** (and surfaced verbatim by 3.2's `internalError`
+  > logging). The script now prints its recipient and hints on that 403.
+  > **Placement ✓ (2026-07-18):** the sandbox OTP landed in the Gmail
+  > **inbox**, not spam (owner-confirmed) — good baseline deliverability.
+  > The bare smoke also now defaults its recipient to `RESEND_ACCOUNT_EMAIL`
+  > from `.env` (the git identity was a different address — the cause of two
+  > confusing sandbox 403s).
+  > **Decision (2026-07-18): buy a dedicated domain** (owner-chosen over the
+  > device-flow fallback). Availability verified via RDAP (whois was
+  > unreliable — the macOS client stopped at the IANA root): `mogi.dev`,
+  > `mogi.app`, `getmogi.com`, `mogiapp.com` taken; **`trymogi.dev`,
+  > `trymogi.app`, `trymogi.com`, `getmogi.dev`, `usemogi.com` available**
+  > (recommendation: `trymogi.dev`). Because the domain will exist solely for
+  > the app, sending from the root (`otp@<domain>`) is fine — Resend's
+  > "use a subdomain" advice protects domains that also carry other mail, and
+  > Resend puts the SPF/bounce records on `send.<domain>` regardless.
+  > **Domain live (2026-07-18):** `trymogi.dev` bought (Cloudflare DNS),
+  > added + **verified in Resend**; SPF TXT + feedback MX on
+  > `send.trymogi.dev` and the DKIM key all resolve publicly (checked
+  > authoritative + 1.1.1.1 + 8.8.8.8 — an early empty read was propagation
+  > racing, minutes-scale). `MAIL_FROM="Mogi <otp@trymogi.dev>"` set in
+  > `.env`; real-domain smokes **accepted (204) to both Gmail and the UNC
+  > corporate address** — the latter doubles as the verification proof, since
+  > the sandbox had refused that exact recipient. (Also fixed a smoke-script
+  > env quirk: the `${MAIL_FROM:+…}` inline-prefix word-split a
+  > `"Name <addr>"` value; the sourced env is exported, so the prefix was
+  > removed.)
+  > **Placement ✓ (2026-07-18):** real-domain OTP landed in the **Gmail
+  > inbox** (owner-confirmed) from `otp@trymogi.dev` — a verified domain
+  > reaching a major provider's inbox is the deliverability bar 3.3 exists to
+  > clear. The functional requirement (testers receive OTPs) is met.
+  > **Optional polish (non-blocking, does not gate 3.4):** (1) add the
+  > `_dmarc` TXT (`v=DMARC1; p=none`) in Cloudflare — still absent in DNS as
+  > of this write; recommended hygiene, and some strict corporate filters
+  > weight it. (2) Spot-check the UNC/corporate inbox + Gmail "Show original"
+  > SPF/DKIM verdicts if convenient. Neither blocks deploy.
+- ✅ **3.4 Deploy.** Secrets → Secret Manager; `gcloud run deploy mogi-access
   --source access-service --max-instances 1 …`; `roles/datastore.user`; seed
   `config/config` + first invite; re-run the smoke curl against prod.
-  > **Checkpoint (3.3+3.4):** prod flow green incl. real OTP mail;
-  > `git grep -i "sk-or\|AIza\|re_"` clean (public repo); `--max-instances 1` set.
-- ☐ **3.5 Point the app at prod.** Set `access.DefaultURL` to the Cloud Run URL;
+  > **Checkpoint (3.3+3.4) ✓ (2026-07-19)** — all three conditions met: prod
+  > flow green **including real OTP mail** from `otp@trymogi.dev`; no key
+  > material in tracked files; `--max-instances 1` confirmed on the live
+  > revision. **Live URL:** `https://mogi-access-zdz7y265mq-uc.a.run.app`
+  > (3.5 sets `access.DefaultURL` to this).
+  > **As-built:**
+  > - **Everything in `us-central1`** — Firestore Native DB co-located with
+  >   Cloud Run (Firestore's location is permanent; single-region is cheaper
+  >   than multi-region and this service is low-QPS).
+  > - **A `Dockerfile` rather than buildpacks** (multi-stage → static
+  >   `CGO_ENABLED=0` binary on `distroless/static:nonroot`): deterministic,
+  >   tiny, and immune to buildpack Go-version drift (the module is `go
+  >   1.25.0`). Added `.dockerignore` + `.gcloudignore` that **exclude `.env`**
+  >   so the real keys can never enter the build context or image — the
+  >   secret-hygiene-critical detail of this step.
+  > - **Env vars deliberately omit `TEST_PHASE_ACTIVE` and `PINNED_MODEL`.**
+  >   In `STORE=firestore` those are read from the `config/config` doc; setting
+  >   them as env would imply an authority they don't have. Only
+  >   `STORE`/`MAILER`/`GCP_PROJECT`/`MAIL_FROM` are env; the three provider
+  >   keys mount from Secret Manager (`mogi-google-shared-key`,
+  >   `mogi-elevenlabs-shared-key`, `mogi-resend-api-key`).
+  > - **IAM** on the runtime (compute default) SA: `roles/datastore.user`,
+  >   `roles/secretmanager.secretAccessor`, `roles/cloudbuild.builds.builder`.
+  > - **New `ops/seed-firestore.sh`** — `show` / `config <bool> [model]` /
+  >   `invite <CODE> [max-uses]`, the scriptable form of the console-editable
+  >   state (reused by 3.8's invite minting).
+  > **Prod smoke results:** bad invite → 400 (no mail); real invite → 204 **+
+  > real email delivered**; OTP persisted to Firestore as a *hash* keyed by
+  > email hash carrying its invite code (the 0.6 privacy design, visible in
+  > prod); verify → 200 with token + keys, the **Google/ElevenLabs values
+  > arriving from Secret Manager** and `pinnedModel` from the config doc;
+  > `/keys` → 200 with the identical payload shape; garbage token → 401;
+  > invite consumed **exactly once** (1/5), 1 tester + 1 session written, OTP
+  > doc deleted after use.
+  > **Kill-switch drill ✓ (prod, live):** flipping `TestPhaseActive=false` in
+  > the config doc — **no redeploy** — immediately turned `/keys` into 403
+  > ("test phase has ended", the app's graceful sign-out) and `/activate` into
+  > 403. **The service is deliberately left in this dormant state** until the
+  > OpenRouter key lands (below), so the deployed stack cannot hand anyone
+  > stub keys.
+  > **Known quirk (not a service defect):** `/healthz` is unreachable *from
+  > the dev machine* — Cloud Run's request log proves those requests never
+  > arrive, while `/` and `/activate` do (and return our Go mux's 404 and our
+  > handler's JSON 400 respectively). Something on the local network hijacks
+  > that path; `ops/smoke-resend.sh` is unaffected because it probes its own
+  > localhost service.
+  > **Remaining ☐ before testers (the 3.6 gate): a real
+  > `OPENROUTER_PROVISIONING_KEY`.** The service is running the **stub
+  > minter**, so activation currently returns a fake `sk-or-…` key. Fix is one
+  > secret + one redeploy (see the README's "Going live" note), then flip the
+  > kill switch back on.
+- ✅ **3.5 Point the app at prod.** Set `access.DefaultURL` to the Cloud Run URL;
   `go build ./... && wails build`.
+  > **Done (2026-07-19).** `access.DefaultURL` →
+  > `https://mogi-access-zdz7y265mq-uc.a.run.app` (placeholder retired). Root
+  > `go build`/`vet`/`gofmt`/`go test` green; **full `wails build` green** —
+  > `Mogi.app` packaged and self-signed. Verified the constant survives into
+  > the shipped artifact: `strings` on the built binary finds the Cloud Run URL
+  > and **zero** occurrences of the old `mogi-access.example.com`.
+  > **Live probe:** a throwaway `internal/access` test drove the **real client
+  > against the real deployed service** (then was deleted): a bogus token came
+  > back as the `ErrUnauthorized` sentinel — precisely the signal
+  > `Account.Refresh` keys its purge-and-sign-out path off — and a bad invite
+  > surfaced the server's own message. So the client↔service contract holds
+  > over the network, not just against `httptest`.
+  > **As-built:** `DefaultURL`'s comment now records *why* the runtime knobs
+  > live in Firestore rather than beside it — changing this constant needs a
+  > new app release, whereas the kill switch and pinned model must be
+  > changeable in seconds.
 - ☐ **3.6 Prod e2e + drills.** Repeat 2.6 against prod. Drills: kill switch,
   rotation, per-tester revocation (`revoked:true` + delete OR key by hash).
+  > **🐞 3.6 caught a production-breaking bug before any tester could.**
+  > `internal/openrouter`'s `keysURL` carried a **trailing slash** (0.1 recorded
+  > it as `POST /api/v1/keys/`). Against the live API that path returns **404**
+  > on POST — so *every* activation would have failed at mint time, after the
+  > OTP was already spent and the invite use already consumed. (GET on the same
+  > path 301-redirects, which Go silently downgrades to a GET — a mint would
+  > have become a key *list*.) Fixed: `keysURL` has no trailing slash, `Delete`
+  > appends `"/"+hash`. `baseURL` became a `Client` field purely so tests can
+  > point at an `httptest` server; new `provisioning_test.go` pins the path,
+  > method, auth header, and `{name, limit}` body for both calls, plus the
+  > error path. **This also closes 0.1's open residual:** a live mint returned
+  > `limit` exactly as sent, confirming it is USD and a *ceiling* — the probe
+  > key was deleted immediately (`DELETE → 200`, proving the revocation hook
+  > works too).
+  > **Real minting verified end-to-end in prod ✓ (2026-07-19).** After the fix
+  > shipped (rev `00003-5k7`), a fresh activation on the genuine first-time
+  > path produced: a real `sk-or-v1-…` key (73 chars, **not** the stub's
+  > `sk-or-fake-…`); OpenRouter showing it **named for the tester's email with
+  > a $3 limit, $0 used**; invite `Uses` 1→2; the tester doc carrying the real
+  > `ORKeyHash`. Decisive check — **a live inference call with that tester key
+  > on the pinned model returned "managed key works"**, so the artefact a
+  > tester actually receives is proven functional, not merely well-formed.
+  > **Two of the three drills are already done** (out of order, while building
+  > the 3.4 ops tooling): the **kill switch** was proven live in 3.4, and
+  > **per-tester revocation** was proven live on 2026-07-19 —
+  > `ops/seed-firestore.sh revoke <email>` → `/keys` returns 403 *"this test
+  > account has been deactivated"*, with the tester's `ORKeyHash` preserved for
+  > the paired OpenRouter delete. Remaining for 3.6: the full app-side e2e and
+  > the **shared-key rotation** drill.
+  > **App-level prod e2e ✓ (2026-07-19)** — the real app (`wails dev`, fresh
+  > DB, both data dirs moved aside) against the **live Cloud Run service**:
+  > fresh install → two-door chooser → invite door → real OTP email → activate
+  > → **"You're signed in"** → Hub showing **SYSTEM READY / Start Session
+  > enabled with zero key setup** (the managed tier's whole point). Local
+  > SQLite held all six `managed_*` rows incl. the **real 73-char
+  > `sk-or-v1-` key**, `key_mode=managed`, and an **empty BYOK namespace**
+  > (separation visible). Settings → API Keys rendered the account card
+  > (email, ACTIVE, pinned model, switch/sign-out); Models showed the **locked
+  > pinned-model card** carrying the value from the prod config doc; Voice
+  > showed **Google-only tiles + the BYOK-only note and 51 voices** — a live
+  > `ListVoices` through the shared Google key, so that key is proven working
+  > *from inside the app*, not just from curl.
+  > **Kill switch, app-level ✓ (the flagship drill):** flipping
+  > `TestPhaseActive=false` and relaunching drove the launch refresh to a 403
+  > → **every `managed_*` row purged, `key_mode` back to `byok`**, and the UI
+  > landed on the setup chooser — a graceful sign-out, no error state, no
+  > crash.
+  > **☐ Not covered by this run** (deferred, lower value): BYOK-regression
+  > round trip, offline grace, and Clear-All-Data — all three passed in the
+  > 2.6 local battery against identical backend code paths, and the
+  > namespace separation they protect was re-observed above.
+  > **🐞 Unrelated crash found:** `wails dev` **SIGSEGV**s at startup inside
+  > the global hotkey listener — `gohook.End()` under cgo,
+  > `internal/hotkey/listener.go:212` — on Go 1.25.5 / gohook v0.42.3 without
+  > Accessibility permission. 2.6 had recorded this as a harmless *warning*;
+  > it is now fatal, so it is a regression in its own right (it would hit any
+  > dev running `wails dev` unprivileged). Worked around for this e2e by
+  > pre-setting `push_to_talk_enabled=0` in the fresh DB. **Not a
+  > managed-keys defect — needs its own fix.**
+  > **Ops tooling as-built:** `seed-firestore.sh` was rewritten to
+  > verb-per-command (`on`/`off`/`model`/`invite`/`disable-invite`/`testers`/
+  > **Rotation drill ◑ (2026-07-19).** Google shared key rotated: replacement
+  > `mogi-managed-voice-v2` minted with the same two API restrictions, added
+  > as **secret version 2**, and independently proven by
+  > `ops/verify-providers.sh` **5/5** (TTS, STT round-trip, and a
+  > non-allowlisted API still 403 — same posture as v1). **Key operational
+  > finding: a new secret version does NOT reach a running instance.** Cloud
+  > Run resolves `:latest` at *container start*, so the warm instance kept
+  > serving v1 throughout (re-checked twice). Rotating a **leaked** key
+  > therefore requires forcing a new revision — never assume the rotation is
+  > live. Remaining: redeploy (or let the instance idle out), confirm `/keys`
+  > serves v2, then delete the v1 key (`gcloud services api-keys delete`).
+  > `revoke`/`unrevoke`/`show`) and every mutation now carries an
+  > `updateMask`. The first cut used bare Firestore PATCHes, which **replace
+  > the whole document** — `config false` silently rewrote `PinnedModel` to the
+  > script's default, and a naive `revoke` would have wiped the tester's minted
+  > `ORKey`. New `ops/openrouter-keys.sh` (`list`/`delete <hash>`) exposes the
+  > provisioning `Delete` that 0.5 built as an ops hook and 3.6 needs.
 - ☐ **3.7 Docs.** `roadmap.md` (status), `architecture.md` (3 bindings,
   `managed:changed` event, access-service data-flow note), `CLAUDE.md` (map
   rows), flip `managed-keys-plan.md` status to implemented.
@@ -469,12 +768,20 @@ planned except for the small as-built refinements noted per step.
   build/test/vet/gofmt, access-service suite, `npx tsc --noEmit`; its
   console-driven backend e2e ran inside 2.6)**; **2.6 full local e2e ✓ (kill
   switch, offline grace, BYOK regression, ClearAll — see the 2.6 gate notes)**;
+  **3.1 checkpoint ✓ (2026-07-18, `access-service/ops/verify-providers.sh`
+  5/5 — Google TTS + STT round trip + restriction 403; EL TTS 401
+  missing-permission, Scribe 200; rerun it after minting or rotating either
+  shared key)**; **3.2 ✓ (memory suite green, zero interface change, root
+  module untouched; plus emulator integration tests + a live
+  `STORE=firestore` service smoke with a doc-driven kill-switch flip)**;
   3.6 prod e2e + revocation/rotation drills ☐.
 
 ## Critical files
 
 - `access-service/internal/server/server.go` ✅ + `internal/access/client.go` ✅
   — the two sides of the wire contract
+- `access-service/internal/store/firestore.go` ✅ — the production store
+  (transactional invite consume, console-editable `config/config` doc)
 - `internal/service/account.go` ✅ — activation/refresh/sign-out + the
   `applyKeyMode` invariant
 - `internal/service/settings.go` ✅ — mode-aware AuthStatus + the three chokepoints

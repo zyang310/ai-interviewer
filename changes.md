@@ -45,7 +45,7 @@ stretch goals:
 
 
 
-
+changes: PLans if I buy the apple developer 99$
 
 
 
