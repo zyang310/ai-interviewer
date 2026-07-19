@@ -28,6 +28,16 @@ on:
         description: "Version tag to build and attach, e.g. v0.8.0"
         required: true
         type: string
+  # Manual re-run against a tag that already exists. Useful when a release was
+  # published but its build needs redoing — e.g. it went out unsigned because the
+  # signing secrets weren't in place yet. Rebuilds and replaces the attached
+  # .zip in place, so no version number is wasted proving CI works.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to rebuild and re-attach, e.g. v0.9.0"
+        required: true
+        type: string
 
 permissions:
   contents: write # required to create/update the GitHub Release
@@ -116,7 +126,10 @@ jobs:
             echo "::notice::Signing credentials present — this build will be signed and notarized."
           else
             echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::MACOS_CERTIFICATE is not set — publishing an UNSIGNED build."
+            echo "::warning::MACOS_CERTIFICATE is empty — publishing an UNSIGNED build."
+            echo "::warning::If the secret DOES exist in repo settings, the cause is almost"
+            echo "::warning::certainly a missing 'secrets: inherit' on the job that calls this"
+            echo "::warning::workflow — called workflows receive no secrets unless passed."
           fi
 
       # Runners are ephemeral, but a dedicated keychain still beats touching the
@@ -235,24 +248,36 @@ jobs:
       # build, so compose them here rather than shipping stale advice: telling a
       # user to right-click→Open an app that no longer needs it is worse than
       # saying nothing, because it implies the app is still untrusted.
-      - name: Compose install instructions
+      - name: Compose release body
         id: install
         run: |
           APP_NAME='${{ steps.pkg.outputs.appname }}'
           {
-            echo 'steps<<__INSTALL_EOF__'
-            echo '1. Download the `.zip` below and unzip it.'
-            echo "2. Drag **$APP_NAME** into your **Applications** folder."
-            if [ "${{ steps.signing.outputs.enabled }}" = "true" ]; then
-              echo '3. Open it. That’s it.'
+            echo 'body<<__INSTALL_EOF__'
+            # A manual re-run targets a release that already has its notes, and
+            # append_body would duplicate them. Emit nothing and just swap the asset.
+            if [ "${{ github.event_name }}" != "workflow_dispatch" ]; then
+              echo '${{ steps.notes.outputs.highlights }}'
               echo ''
-              echo 'Signed with a Developer ID certificate and notarized by Apple, so it'
-              echo 'launches without Gatekeeper warnings.'
-            else
-              echo '3. This build is **unsigned**, so the first launch needs one extra step'
-              echo '   to get past macOS Gatekeeper (you only do this once):'
-              echo '   - **Right-click** the app → **Open** → **Open** in the dialog, **or**'
-              echo "   - run in Terminal: \`xattr -cr \"/Applications/$APP_NAME\"\`"
+              echo 'macOS universal build — runs on Apple Silicon and Intel Macs.'
+              echo ''
+              echo '### Install'
+              echo '1. Download the `.zip` below and unzip it.'
+              echo "2. Drag **$APP_NAME** into your **Applications** folder."
+              if [ "${{ steps.signing.outputs.enabled }}" = "true" ]; then
+                echo '3. Open it. That’s it.'
+                echo ''
+                echo 'Signed with a Developer ID certificate and notarized by Apple, so it'
+                echo 'launches without Gatekeeper warnings.'
+              else
+                echo '3. This build is **unsigned**, so the first launch needs one extra step'
+                echo '   to get past macOS Gatekeeper (you only do this once):'
+                echo '   - **Right-click** the app → **Open** → **Open** in the dialog, **or**'
+                echo "   - run in Terminal: \`xattr -cr \"/Applications/$APP_NAME\"\`"
+              fi
+              echo ''
+              echo 'Already have it installed? The app checks for updates on launch and'
+              echo 'shows a banner when a newer version is here.'
             fi
             echo '__INSTALL_EOF__'
           } >> "$GITHUB_OUTPUT"
@@ -267,13 +292,4 @@ jobs:
           # hand-tagged path nothing exists yet, so let GitHub write its auto-notes.
           append_body: true
           generate_release_notes: ${{ inputs.tag == '' }}
-          body: |
-            ${{ steps.notes.outputs.highlights }}
-
-            macOS universal build — runs on Apple Silicon and Intel Macs.
-
-            ### Install
-            ${{ steps.install.outputs.steps }}
-
-            Already have it installed? The app checks for updates on launch and shows a
-            banner when a newer version is here.
+          body: ${{ steps.install.outputs.body }}

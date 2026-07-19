@@ -56,5 +56,10 @@ jobs:
     uses: ./.github/workflows/release.yml
     permissions:
       contents: write # reusable workflows run with the caller's permissions
+    # Required, and easy to miss: a called workflow gets NO repository secrets
+    # unless they are passed. GITHUB_TOKEN is the sole exception, so publishing
+    # a release still works without this — while signing silently degrades to an
+    # unsigned build, because `secrets.MACOS_CERTIFICATE` reads as empty.
+    secrets: inherit
     with:
       tag: ${{ needs.release-please.outputs.tag_name }}
