@@ -100,6 +100,127 @@ jobs:
       - name: Wails build (darwin/universal)
         run: wails build -platform darwin/universal -ldflags "-X main.version=${{ steps.ver.outputs.tag }}"
 
+      # ── Sign & notarize ──────────────────────────────────────────────────
+      # All four steps below are skipped when MACOS_CERTIFICATE is absent, so the
+      # workflow still produces a working (unsigned) release before the signing
+      # secrets exist — and starts signing automatically once they are added,
+      # with no edit here. `secrets` can't be referenced in a job-level `if`,
+      # hence probing it once into an output.
+      - name: Check for signing credentials
+        id: signing
+        env:
+          CERT: ${{ secrets.MACOS_CERTIFICATE }}
+        run: |
+          if [ -n "$CERT" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::Signing credentials present — this build will be signed and notarized."
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::MACOS_CERTIFICATE is not set — publishing an UNSIGNED build."
+          fi
+
+      # Runners are ephemeral, but a dedicated keychain still beats touching the
+      # default one: it keeps the key out of any other step and dies with the VM.
+      - name: Import Developer ID certificate
+        if: steps.signing.outputs.enabled == 'true'
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PWD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+          KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
+          CERT_PATH="$RUNNER_TEMP/cert.p12"
+
+          echo "$MACOS_CERTIFICATE" | base64 --decode > "$CERT_PATH"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import "$CERT_PATH" -k "$KEYCHAIN" -P "$MACOS_CERTIFICATE_PWD" \
+            -T /usr/bin/codesign -T /usr/bin/security
+          # Without this, codesign blocks on a GUI prompt to use the key and the job hangs.
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" > /dev/null
+          # Keep the login keychain in the search list so system roots still resolve.
+          security list-keychains -d user -s "$KEYCHAIN" login.keychain-db
+
+          rm -f "$CERT_PATH"
+          security find-identity -v -p codesigning "$KEYCHAIN"
+
+      # No --deep: Apple advises against it for signing (it's for verification).
+      # A Wails bundle has no nested code, so signing the bundle alone is right —
+      # and the --deep --strict verify below would fail loudly if that changed.
+      - name: Sign
+        if: steps.signing.outputs.enabled == 'true'
+        env:
+          IDENTITY: "Developer ID Application: Zhi Hang Yang (DJ7U5LFM22)"
+        run: |
+          set -euo pipefail
+          APP="build/bin/$(ls build/bin | grep '\.app$' | head -1)"
+
+          codesign --force --timestamp --options runtime \
+            --entitlements build/darwin/entitlements.plist \
+            --sign "$IDENTITY" "$APP"
+
+          codesign --verify --deep --strict --verbose=2 "$APP"
+
+          # --verify is not sufficient on its own: it reports "valid on disk" for a
+          # bundle whose executable is missing entirely (observed on a stale local
+          # build). Assert the two things that actually matter instead.
+          test -x "$APP/Contents/MacOS/Mogi" \
+            || { echo "::error::bundle has no executable at Contents/MacOS/Mogi"; exit 1; }
+          codesign -d --entitlements - "$APP" 2>/dev/null \
+            | grep -q 'com.apple.security.device.audio-input' \
+            || { echo "::error::microphone entitlement missing — voice input would fail under the hardened runtime"; exit 1; }
+
+      - name: Notarize
+        if: steps.signing.outputs.enabled == 'true'
+        env:
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          APP="build/bin/$(ls build/bin | grep '\.app$' | head -1)"
+          KEY_PATH="$RUNNER_TEMP/AuthKey.p8"
+          echo "$APPLE_API_KEY" | base64 --decode > "$KEY_PATH"
+
+          # notarytool takes an archive, never a bare .app.
+          ditto -c -k --keepParent "$APP" "$RUNNER_TEMP/notarize.zip"
+
+          set +e
+          xcrun notarytool submit "$RUNNER_TEMP/notarize.zip" \
+            --key "$KEY_PATH" --key-id "$APPLE_API_KEY_ID" --issuer "$APPLE_API_ISSUER_ID" \
+            --wait --timeout 30m
+          STATUS=$?
+          set -e
+
+          # On rejection the log is the only thing that says why, so always fetch it.
+          if [ $STATUS -ne 0 ]; then
+            echo "::error::Notarization failed — fetching the most recent submission log"
+            SUB="$(xcrun notarytool history --key "$KEY_PATH" --key-id "$APPLE_API_KEY_ID" \
+                    --issuer "$APPLE_API_ISSUER_ID" -f json | python3 -c 'import json,sys; print(json.load(sys.stdin)["history"][0]["id"])')"
+            xcrun notarytool log "$SUB" --key "$KEY_PATH" --key-id "$APPLE_API_KEY_ID" \
+              --issuer "$APPLE_API_ISSUER_ID" || true
+          fi
+
+          rm -f "$KEY_PATH"
+          exit $STATUS
+
+      # Stapling writes the ticket into the bundle so it validates offline. This
+      # MUST happen before the release zip is built, or users download an app
+      # that needs to phone Apple on first launch.
+      - name: Staple & verify
+        if: steps.signing.outputs.enabled == 'true'
+        run: |
+          set -euo pipefail
+          APP="build/bin/$(ls build/bin | grep '\.app$' | head -1)"
+          xcrun stapler staple "$APP"
+          xcrun stapler validate "$APP"
+          # The real test: what Gatekeeper will say on a user's machine.
+          spctl --assess --type execute --verbose=4 "$APP"
+
       - name: Package .app
         id: pkg
         run: |
@@ -109,6 +230,32 @@ jobs:
           ditto -c -k --keepParent "$app" "$zip"
           echo "zip=build/bin/$zip" >> "$GITHUB_OUTPUT"
           echo "appname=$app" >> "$GITHUB_OUTPUT"
+
+      # The install steps differ entirely between a notarized and an unsigned
+      # build, so compose them here rather than shipping stale advice: telling a
+      # user to right-click→Open an app that no longer needs it is worse than
+      # saying nothing, because it implies the app is still untrusted.
+      - name: Compose install instructions
+        id: install
+        run: |
+          APP_NAME='${{ steps.pkg.outputs.appname }}'
+          {
+            echo 'steps<<__INSTALL_EOF__'
+            echo '1. Download the `.zip` below and unzip it.'
+            echo "2. Drag **$APP_NAME** into your **Applications** folder."
+            if [ "${{ steps.signing.outputs.enabled }}" = "true" ]; then
+              echo '3. Open it. That’s it.'
+              echo ''
+              echo 'Signed with a Developer ID certificate and notarized by Apple, so it'
+              echo 'launches without Gatekeeper warnings.'
+            else
+              echo '3. This build is **unsigned**, so the first launch needs one extra step'
+              echo '   to get past macOS Gatekeeper (you only do this once):'
+              echo '   - **Right-click** the app → **Open** → **Open** in the dialog, **or**'
+              echo "   - run in Terminal: \`xattr -cr \"/Applications/$APP_NAME\"\`"
+            fi
+            echo '__INSTALL_EOF__'
+          } >> "$GITHUB_OUTPUT"
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
@@ -126,12 +273,7 @@ jobs:
             macOS universal build — runs on Apple Silicon and Intel Macs.
 
             ### Install
-            1. Download the `.zip` below and unzip it.
-            2. Drag **${{ steps.pkg.outputs.appname }}** into your **Applications** folder.
-            3. This app is **unsigned**, so the first launch needs one extra step to get
-               past macOS Gatekeeper (you only do this once):
-               - **Right-click** the app → **Open** → **Open** in the dialog, **or**
-               - run in Terminal: `xattr -cr "/Applications/${{ steps.pkg.outputs.appname }}"`
+            ${{ steps.install.outputs.steps }}
 
             Already have it installed? The app checks for updates on launch and shows a
             banner when a newer version is here.

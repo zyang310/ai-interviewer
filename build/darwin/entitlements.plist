@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Entitlements for the Developer ID (notarized) build.
+
+  Notarization requires the hardened runtime, which denies a set of capabilities
+  unless the app explicitly asks for them. This file is that request, and it is
+  deliberately minimal — every entitlement here is one the app provably needs,
+  because each one is a hole in the runtime's protections.
+
+  Only the microphone needs an entitlement:
+
+    · Microphone — the voice path records through MediaRecorder inside WKWebView
+      (frontend/src/lib/useVoiceRecorder.ts). Under the hardened runtime an
+      Info.plist usage string is NOT sufficient; without the entitlement the
+      recorder fails at runtime while the rest of the app looks fine.
+
+  Deliberately NOT here:
+
+    · Screen capture (internal/capture, kbinani/screenshot) and the global voice
+      hotkey (internal/hotkey, robotn/gohook) are gated by TCC — Screen Recording
+      and Input Monitoring — which the user grants in System Settings. They are
+      permissions, not entitlements, so nothing belongs here for them.
+
+    · Network access. That is restricted by the App Sandbox, which this app does
+      not use; the hardened runtime alone does not block outbound connections.
+
+    · com.apple.security.cs.allow-jit. WKWebView runs JavaScript in Apple's own
+      out-of-process WebContent service, which carries its own entitlements — the
+      host app does not need JIT rights of its own.
+
+  If a capability breaks only in the signed build, this file is the first place
+  to look, but add to it only with evidence — not pre-emptively.
+-->
+<plist version="1.0">
+<dict>
+	<key>com.apple.security.device.audio-input</key>
+	<true/>
+</dict>
+</plist>
