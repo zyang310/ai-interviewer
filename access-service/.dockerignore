@@ -1,0 +1,6 @@
+# Never bake secrets, local build artifacts, or ops scripts into the image.
+.env
+mogi-access
+ops/
+README.md
+Dockerfile

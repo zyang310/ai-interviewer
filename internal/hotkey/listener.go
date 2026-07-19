@@ -83,6 +83,11 @@ type Status struct {
 // libuiohook keeps global state and its macOS event-tap teardown is asynchronous,
 // so a Stop-then-Start cycle races the C layer and segfaults. All exported
 // methods are safe for concurrent use.
+//
+// The listener fails safe when the OS refuses the hook: it never starts one it
+// knows will be denied (accessibilityTrusted) and never tears down one that
+// never came up (endHook). Either way it stays idle and reports the reason
+// through Status — a denied permission must not take the app down with it.
 type Listener struct {
 	mu          sync.Mutex
 	ctx         context.Context // app context for EventsEmit
@@ -109,18 +114,34 @@ func (l *Listener) Apply(ctx context.Context, enabled bool, spec Spec) {
 	l.spec = spec
 	l.m = newMatcher(spec)
 	l.enabled = enabled
-	if enabled && !l.started {
-		l.ctx = ctx
-		l.started = true
-		l.done = make(chan struct{})
-		hookCtx, cancel := context.WithCancel(ctx)
-		l.cancel = cancel
-		go l.loop(hookCtx)
+	if !enabled || l.started {
+		return
 	}
+	// Refuse to install a hook the OS will reject. gohook starts the hook
+	// asynchronously and reports a refusal only to stderr, so without this
+	// pre-flight the failure resurfaces later as an unrecoverable SIGSEGV in
+	// teardown (see endHook). Staying idle leaves started=false, so a later
+	// Apply — after the user grants the permission — starts it for real.
+	if !accessibilityTrusted() {
+		l.lastErr = errNoAccessibility
+		return
+	}
+	l.lastErr = ""
+	l.ctx = ctx
+	l.started = true
+	l.done = make(chan struct{})
+	hookCtx, cancel := context.WithCancel(ctx)
+	l.cancel = cancel
+	go l.loop(hookCtx)
 }
 
+// errNoAccessibility is reported through Status when the OS denies the hook.
+const errNoAccessibility = "accessibility permission denied — grant Mogi access in " +
+	"System Settings ▸ Privacy & Security ▸ Accessibility, then relaunch"
+
 // Shutdown stops the OS hook and waits for the goroutine to exit. Called once at
-// app shutdown — this is the only hook.End() in the app's lifetime.
+// app shutdown — the only path that can reach hook.End() in the app's lifetime,
+// and even then only if the hook actually came up (see endHook).
 func (l *Listener) Shutdown() {
 	l.mu.Lock()
 	if !l.started {
@@ -156,8 +177,13 @@ func (l *Listener) Status() Status {
 // without a restart. KeyHold (OS auto-repeat) is ignored and the matcher re-arms
 // on release, so each physical press emits exactly one "ptt:down".
 func (l *Listener) loop(ctx context.Context) {
+	// live is the teardown gate: see endHook for why hook.End() is not safe to
+	// call unconditionally. Defers run LIFO, so the order below is endHook,
+	// then the recover guard, then close(done) — the recover must be registered
+	// *after* the teardown to be able to catch it, and close(done) first so
+	// Shutdown does not return until teardown has finished.
+	live := false
 	defer close(l.done)
-	defer hook.End() // the one and only teardown, as the goroutine unwinds
 	defer func() {
 		// libuiohook can panic on some teardown/permission paths — never crash
 		// the host app; record it for Status instead.
@@ -168,9 +194,9 @@ func (l *Listener) loop(ctx context.Context) {
 			l.mu.Unlock()
 		}
 	}()
+	defer func() { l.endHook(live) }() // the one and only teardown
 
-	confirmed := false
-	evChan := hook.Start() // begins the global hook (needs Input Monitoring on macOS)
+	evChan := hook.Start() // begins the global hook (needs Accessibility on macOS)
 	for {
 		select {
 		case <-ctx.Done():
@@ -179,11 +205,12 @@ func (l *Listener) loop(ctx context.Context) {
 			if !ok {
 				return // channel closed by hook.End()
 			}
-			if !confirmed {
+			if !live {
 				// The first delivered event proves the hook is live — and on
-				// macOS, that Input Monitoring was granted (denied ⇒ no events
-				// at all). Drives the Settings permission hint.
-				confirmed = true
+				// macOS, that Accessibility was granted (denied ⇒ no events
+				// at all). Drives the Settings permission hint and the
+				// teardown gate.
+				live = true
 				l.mu.Lock()
 				l.hookEnabled = true
 				l.mu.Unlock()
@@ -209,4 +236,24 @@ func (l *Listener) loop(ctx context.Context) {
 			}
 		}
 	}
+}
+
+// endHook tears down the OS hook, but only when it actually came up.
+//
+// gohook's darwin hook_stop() dereferences a CFRunLoopRef that hook_run()
+// assigns only after the event tap is live; when macOS denies Accessibility,
+// hook_run() bails out early and leaves it NULL, so hook.End() reaches
+// CFRunLoopCopyCurrentMode(NULL) and takes the whole process down with a
+// SIGSEGV. That is a fault in C, not a Go panic, so the recover guard in loop
+// cannot catch it — the call has to be avoided, not recovered. No released
+// gohook fixes this (v1.0.0-beta1 carries the same unguarded hook_stop).
+//
+// live is set by the first delivered event, which libuiohook emits on run-loop
+// entry, so it is sound proof that the run loop hook_stop() wants exists.
+// Skipping teardown on a dead hook leaks nothing: there is no run loop to stop.
+func (l *Listener) endHook(live bool) {
+	if !live {
+		return
+	}
+	hook.End()
 }
