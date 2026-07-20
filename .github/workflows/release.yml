@@ -46,6 +46,9 @@ jobs:
   release:
     name: Build & publish (macOS universal)
     runs-on: macos-latest
+    # Comfortably above the 150m notarization wait, but well under the 6h default
+    # so a genuinely wedged run fails in a useful timeframe instead of idling.
+    timeout-minutes: 180
     steps:
       # `inputs.tag` is set when release-please calls us. On a hand-pushed tag the
       # inputs context is empty, so fall back to the ref that triggered the run.
@@ -202,15 +205,20 @@ jobs:
           # notarytool takes an archive, never a bare .app.
           ditto -c -k --keepParent "$APP" "$RUNNER_TEMP/notarize.zip"
 
-          # Apple usually answers within 15 minutes, but slow spells are common and
-          # a new Developer ID's first submissions are often slower still. 30m was
-          # not enough in practice; the ceiling here is patience, not correctness —
-          # a timeout stops us waiting but does NOT cancel the submission, which
-          # keeps processing on Apple's side either way.
+          # Apple documents "most within 15 minutes", but this Developer ID is new
+          # and its first two submissions both ran past 79 minutes before being
+          # Accepted — so 30m and 60m were both too tight. The ceiling here is
+          # patience, not correctness: a timeout stops us waiting, it does NOT
+          # cancel the submission, which keeps processing on Apple's side.
+          #
+          # An idle macOS runner is free on a public repo, so a generous bound
+          # costs nothing but wall-clock and buys a release that doesn't need
+          # babysitting. Expect this to be revisitable downward once the account
+          # has some history — new-account slowness is widely reported to settle.
           set +e
           xcrun notarytool submit "$RUNNER_TEMP/notarize.zip" \
             --key "$KEY_PATH" --key-id "$APPLE_API_KEY_ID" --issuer "$APPLE_API_ISSUER_ID" \
-            --wait --timeout 60m
+            --wait --timeout 150m
           STATUS=$?
           set -e
 
