@@ -39,6 +39,11 @@
 
   /* Translucent backing for the sticky header (a alpha'd --background). */
   --header-bg: rgba(246, 240, 230, 0.82);
+
+  /* The header's total footprint, hairline rule included. Pinned rather than
+     left to font metrics so the hero can subtract it and land exactly on the
+     fold. See .header-inner. */
+  --header-h: 4.25rem;
 }
 
 /* ─────────────────────────────  DARK  ──────────────────────────────────── */
@@ -125,11 +130,16 @@ code {
 }
 
 /* The bar spans the window so its blur is full-bleed; the contents inside stay
-   aligned with the page's own column. */
+   aligned with the page's own column.
+   Height comes from --header-h instead of vertical padding: the hero sizes
+   itself to "the viewport minus the header", so that number has to be known
+   up front rather than falling out of whatever the wordmark's line box is.
+   Less the 1px rule on .site-header, which is part of the same footprint. */
 .header-inner {
   max-width: 68rem;
   margin: 0 auto;
-  padding: 0.85rem 1.75rem;
+  min-height: calc(var(--header-h) - 1px);
+  padding: 0 1.75rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -143,7 +153,7 @@ code {
 /* Anchored headings would otherwise land under the sticky bar. */
 :target,
 main section[id] {
-  scroll-margin-top: 4.5rem;
+  scroll-margin-top: calc(var(--header-h) + 0.5rem);
 }
 
 html {
@@ -270,10 +280,22 @@ html {
 }
 
 /* ─────────────────────────────  Hero  ──────────────────────────────────── */
+/* The hero owns the whole first screen: it fills the viewport below the header
+   and centres its contents there. Anything less and the next section peeks up
+   from below the fold, which reads as the page having started scrolled.
+   svh (not vh) because on mobile 100vh is the *expanded* viewport — measured
+   with the browser toolbar hidden — so vh alone pushes the hero's bottom under
+   the toolbar on load. min-height, not height, so a short window (landscape
+   phone) lets the hero grow rather than clipping the headline. */
 .hero {
   max-width: 48rem;
   margin: 0 auto;
-  padding: 5rem 1.5rem 4.5rem;
+  min-height: calc(100vh - var(--header-h));
+  min-height: calc(100svh - var(--header-h));
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 4rem 1.5rem;
   text-align: center;
 }
 
