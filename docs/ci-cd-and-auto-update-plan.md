@@ -1,6 +1,10 @@
 # CI/CD + Auto-Update Plan (Wails v2, macOS, unsigned)
 
-> Status: **planned, not yet implemented.** Design reference for adding a release pipeline and an in-app update flow.
+> Status: **historical.** The original design note, kept as a record of what was planned
+> and why. It has since been implemented *and* partly superseded — most notably the
+> **unsigned** decision below was reversed: releases are now signed with a Developer ID and
+> notarized by Apple, so the Gatekeeper steps described here no longer apply. For how any
+> of this works today, read [ci-cd-and-auto-update.md](ci-cd-and-auto-update.md).
 
 ## Context
 

@@ -64,8 +64,9 @@
 
 - [x] CI on every push to `main` ([build.yml](../.github/workflows/build.yml)): `go build`/`test`/`gofmt` + `tsc`, then a universal `wails build` uploaded as a run artifact.
 - [x] Tag-driven public releases ([release.yml](../.github/workflows/release.yml)): pushing `vX.Y.Z` builds the universal `.app`, zips it, and publishes a GitHub Release — the public download *and* the updater's source of truth.
-- [x] In-app update check (`internal/updater` → GitHub releases API, semver compare) surfaced as a hub banner + Settings → About. **Unsigned** — installs are manual (notify-and-download) with a one-time Gatekeeper step.
-- [ ] Code signing + notarization (Apple Developer account) → silent updates via Sparkle — **deferred**.
+- [x] In-app update check (`internal/updater` → GitHub releases API, semver compare) surfaced as a hub banner + Settings → About. Installs are manual (notify-and-download).
+- [x] **Code signing + notarization** ([release.yml](../.github/workflows/release.yml)): Developer ID signature under the hardened runtime, notarized by Apple and the ticket stapled into the bundle, so Gatekeeper accepts the app with no first-launch workaround. CI falls back to an unsigned build if the signing secrets are absent.
+- [ ] Silent background updates via Sparkle — now unblocked by signing, still **deferred**.
 
 ### Phase 5 — Stretch goals
 

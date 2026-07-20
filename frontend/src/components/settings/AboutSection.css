@@ -132,35 +132,6 @@
   background: var(--outline);
 }
 
-.about-tip {
-  display: flex;
-  gap: 11px;
-  padding: 14px 16px;
-  border-radius: 11px;
-  background: color-mix(in srgb, var(--warning) 9%, transparent);
-  border: 1px solid color-mix(in srgb, var(--warning) 28%, transparent);
-}
-
-.about-tip .material-symbols-outlined {
-  font-size: 20px;
-  color: var(--warning);
-  flex-shrink: 0;
-}
-
-.about-tip div {
-  font-size: 13px;
-  color: var(--on-surface-variant);
-  line-height: 1.6;
-}
-
-.about-tip code {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  background: color-mix(in srgb, var(--on-surface) 8%, transparent);
-  padding: 1px 6px;
-  border-radius: 5px;
-}
-
 /* ── About → project links ───────────────────────────────────────────────── */
 .about-links-label {
   font-size: 12px;

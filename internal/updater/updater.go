@@ -1,7 +1,7 @@
 // Package updater checks GitHub Releases for a newer version of the app and
 // reports whether one is available, so the frontend can prompt the user to
-// download it. It never installs anything: the app is unsigned, so the user
-// downloads the new build and replaces it manually (see
+// download it. It never installs anything: there is no self-replacing updater,
+// so the user downloads the new build and replaces it manually (see
 // docs/ci-cd-and-auto-update.md). All network access is here, mirroring the
 // "external calls live in the Go backend" pattern in internal/ai/client.go.
 package updater

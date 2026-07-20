@@ -464,11 +464,12 @@ html {
   color: var(--on-surface-variant);
 }
 
+/* Reassurance, not a warning — hence the brand accent rather than --warning. */
 .callout {
   margin-top: 0.9rem;
   background: var(--surface-container-low);
   border: 1px solid var(--level-1-border);
-  border-left: 3px solid var(--warning);
+  border-left: 3px solid var(--primary);
   border-radius: 12px;
   padding: 1.1rem 1.25rem;
 }
@@ -477,12 +478,6 @@ html {
   margin: 0;
   font-size: 0.94rem;
   color: var(--on-surface-variant);
-}
-
-.callout-alt {
-  margin-top: 0.7rem !important;
-  padding-top: 0.7rem;
-  border-top: 1px solid var(--level-1-border);
 }
 
 .note {

@@ -93,8 +93,8 @@ export default function AboutSection({ appVersion, goos, setError, setSuccess }:
           <h3 className="settings-card-title">Software updates</h3>
         </div>
         <p className="settings-hint">
-          Releases are published on GitHub. The app is unsigned, so updating means
-          downloading the new build and replacing the app.
+          Releases are published on GitHub. Updating means downloading the new
+          build and replacing the app in Applications.
         </p>
         <div className="about-update-row">
           <button
@@ -134,13 +134,6 @@ export default function AboutSection({ appVersion, goos, setError, setSuccess }:
               </span>
             )
           )}
-        </div>
-        <div className="about-tip">
-          <span className="material-symbols-outlined">lightbulb</span>
-          <div>
-            First launch after replacing may be blocked by macOS. Right-click the app
-            → <strong>Open</strong>, or you can run <code>xattr -cr "/Applications/Mogi.app"</code> on it once.
-          </div>
         </div>
       </div>
 

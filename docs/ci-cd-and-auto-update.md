@@ -19,10 +19,12 @@ one shipped. Three gaps, three goals:
 3. **In-app update awareness** — a running copy should notice when a newer version is
    out and point the user to it.
 
-The constraints that shaped the design: **macOS only**, **no Apple Developer account**
-(the app ships *unsigned*), and updates that are **"notify + download"** rather than
-silent. The rest of this guide explains what those constraints mean and why they lead
-to the design we have.
+The constraints that shaped the design: **macOS only**, and updates that are
+**"notify + download"** rather than silent. The app also shipped *unsigned* at first; it is
+now signed with a Developer ID and notarized by Apple. This guide keeps that history where
+it explains a decision, because the unsigned era is what forced the notify-and-download
+shape in the first place. The rest of it explains what those constraints mean and why they
+lead to the design we have.
 
 ## Concepts, from first principles
 
@@ -103,21 +105,37 @@ in a commit message.
 
 ### macOS distribution: signing, notarization, Gatekeeper
 
-This is the concept that shapes the update experience most, so it's worth understanding.
+This is the concept that shapes the install experience most, so it's worth understanding.
 
 - **Code signing** stamps an app with a certificate proving who built it. It requires an
   **Apple Developer account** ($99/year).
-- **Notarization** is Apple scanning a signed app and stapling an "OK" ticket to it.
+- **Notarization** is Apple scanning a signed app and issuing an "OK" ticket for it.
+  **Stapling** writes that ticket into the bundle so it validates offline.
 - **Gatekeeper** is the macOS gate that, on first launch of a *downloaded* app, checks for
   that signature/notarization. Anything downloaded from the internet also gets a
   **quarantine** attribute (`com.apple.quarantine`) set by the browser.
 
-We ship **unsigned**. So when a user downloads our `.zip`, unzips it, and double-clicks,
-Gatekeeper sees no signature + a quarantine flag and **refuses to open it** ("app is
-damaged / from an unidentified developer"). The fix is a one-time user action:
-right-click → **Open** (which adds a permanent exception), or strip the quarantine flag
-with `xattr -cr "/Applications/Mogi.app"`. This is normal for indie/unsigned
-macOS apps — but it's the reason updates here can't be silent (more below).
+We ship **signed and notarized**. `release.yml` signs the bundle with a Developer ID
+certificate under the **hardened runtime** (`codesign --options runtime --timestamp`),
+submits it to Apple's notary service, staples the returned ticket, and then verifies the
+result the way a user's Mac will: `spctl --assess` must report
+`source=Notarized Developer ID` before the release zip is built. For the user, install is
+download → unzip → drag to `/Applications` → open. That's the whole flow.
+
+**What this replaced.** The app originally shipped unsigned, so Gatekeeper refused to open
+it — *"app is damaged / from an unidentified developer"* — and every install needed a
+one-time workaround (right-click → **Open**, or `xattr -cr`). That is normal for indie
+macOS apps and it worked, but it asked every user to explicitly override a security
+warning, which is a bad habit to teach. The $99/year bought that away.
+
+Two details worth knowing, because either can silently spoil a release:
+
+- **The hardened runtime needs explicit entitlements.** `--options runtime` denies things
+  like microphone access unless the entitlement is declared, so a perfectly-signed build
+  can still ship with voice input broken. `release.yml` asserts
+  `com.apple.security.device.audio-input` survived signing rather than trusting it.
+- **Stapling must happen before the zip is built**, or users get an app that has to phone
+  Apple on first launch — and fails when they're offline.
 
 ### The auto-update spectrum (and why Wails v2 has none built in)
 
@@ -136,15 +154,17 @@ while running":
 
 Frameworks like **Sparkle** (the macOS standard) do the fully-silent version, but they
 **verify a cryptographic signature** before applying an update and rely on the app being
-signed/notarized so the swapped-in copy isn't quarantined. No signing → no safe silent
-swap. Electron and Tauri ship updaters in this family; **Wails v2 ships no auto-updater at
-all**, so whatever we do, we build it ourselves.
+signed/notarized so the swapped-in copy isn't quarantined. Electron and Tauri ship updaters
+in this family; **Wails v2 ships no auto-updater at all**, so whatever we do, we build it
+ourselves.
 
-Given "unsigned," the robust choice is the **left end of the spectrum**: the app checks
-GitHub, and if there's something newer it shows a banner and opens the download. The user
-does the same one-time Gatekeeper step they did on first install. It's not magic, but it's
-reliable and costs nothing — and the design upgrades cleanly to Sparkle later if an Apple
-Developer account ever enters the picture.
+We sit at the **left end of the spectrum**: the app checks GitHub, and if there's something
+newer it shows a banner and opens the download; the user drags the new build into
+`/Applications`. Originally that was not a choice — unsigned ruled out a safe silent swap,
+so the left end was the only end available. Signing has since removed that block, which
+turns "move right on the spectrum" from an impossibility into an option. It stays deferred
+because the remaining cost is real (embed Sparkle, host a signed appcast feed) and one drag
+per update is mild.
 
 ## How the pipeline works, end-to-end
 
@@ -272,20 +292,19 @@ Three details worth calling out, because they're the kind of thing an interviewe
   compare would get that wrong). The logic is a pure function (`isNewer`) with table tests
   in [updater_test.go](../internal/updater/updater_test.go).
 
-## The unsigned trade-off, concretely
+## The install & update experience, concretely
 
-What "unsigned + notify-and-download" actually means for a user:
+What "signed + notify-and-download" actually means for a user:
 
-1. **First install:** download `.zip` → unzip → drag `Mogi.app` to
-   `/Applications` → right-click **Open** once (or `xattr -cr`). After that it launches
-   normally forever.
+1. **First install:** download `.zip` → unzip → drag `Mogi.app` to `/Applications` → open
+   it. No warning, no workaround.
 2. **An update ships:** on next launch the app shows *"A new version is available."* →
-   **Download** opens the new `.zip` → the user repeats step 1's drag + one-time Open.
+   **Download** opens the new `.zip` → the user repeats the drag.
 
-It is **not** a silent background swap. That ceiling is set by the absence of code
-signing, not by the app design. The honest framing: we traded a $99/year account and
-notarization complexity for a one-time, well-understood user action per install. For a
-personal project that's the right call; for a paid product you'd sign and adopt Sparkle.
+It is **not** a silent background swap. That ceiling used to be set by the absence of code
+signing; now it's set by the app design — we simply haven't embedded an updater framework.
+The honest framing: $99/year bought away the security-warning friction, and what remains is
+one drag per update, which isn't yet painful enough to justify Sparkle's complexity.
 
 ## Design decisions & trade-offs
 
@@ -299,18 +318,20 @@ deliberate act.
 separating them. *Computing* the version from commit messages removes hand arithmetic and a
 hand-written changelog — pure upside, no judgement lost, since the prefixes were already
 being written. *Publishing* is still gated on a human merging the Release PR, and that
-gate is deliberate: the app is **unsigned**, so every update a user installs costs them a
-re-download plus the Gatekeeper right-click dance. Auto-tagging each `fix:` would multiply
-that friction across users for no benefit. Batching several commits into one release is
-therefore not laziness — it's the correct response to the distribution constraint. (If
-signing ever lands and updates become silent, the argument for batching weakens and
+gate is deliberate: there is no self-replacing updater, so every release a user installs
+costs them a manual download-and-replace. Auto-tagging each `fix:` would multiply that
+friction across users for no benefit. Batching several commits into one release is
+therefore not laziness — it's the correct response to the distribution constraint. (Signing
+has since removed the *Gatekeeper* half of that friction but not the manual replace; if
+Sparkle ever lands and updates go silent, the argument for batching weakens and
 auto-release-on-every-fix becomes reasonable.)
 
 The standing Release PR also doubles as a **preview**: the proposed version number and the
 generated changelog are visible, and `build.yml` runs against them, before anything is
 public.
 
-**Notify-and-download, not silent.** Covered above — forced by "unsigned," and the
+**Notify-and-download, not silent.** Covered above — originally forced by shipping
+unsigned, kept afterwards because Wails has no built-in updater and the banner is the
 robust option regardless.
 
 **The update check lives in Go, not the frontend.** Every other external call in this app
@@ -408,13 +429,16 @@ know without adding a telemetry backend — deliberately out of scope for now.
 
 ## Later: the path to silent updates
 
-If an Apple Developer account is ever added, this design upgrades without a rewrite:
+This was planned as a two-step upgrade to be done if an Apple Developer account ever
+arrived. **Step 1 has since shipped:**
 
-1. Add **signing + notarization** to `release.yml` (Apple certs in GitHub Secrets,
-   `codesign` + `notarytool` steps). This alone removes the Gatekeeper step for users.
+1. ~~Add **signing + notarization** to `release.yml`.~~ **Done** — Apple certs in GitHub
+   Secrets, `codesign` + `notarytool` + `stapler` steps. This alone removed the Gatekeeper
+   step for users.
 2. Embed **[Sparkle](https://sparkle-project.org)** in the app and publish a signed
    `appcast.xml` feed (the release assets or GitHub Pages can host it). Swap the
    notify-banner for Sparkle's background updater.
 
-The version/tag/release plumbing in this guide stays exactly as-is — only the install
-experience and the "apply" step change.
+Step 1 landing without touching a line of the version/tag/release plumbing is the evidence
+for the claim this guide made in advance: only the install experience changed. Step 2 would
+change the "apply" step the same way, and remains optional.

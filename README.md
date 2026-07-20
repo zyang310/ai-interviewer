@@ -6,11 +6,7 @@
 
 Grab the latest build from the [**Releases**](https://github.com/zyang310/mogi/releases) page — download the `.zip`, unzip it, and drag **Mogi.app** into your **Applications** folder. It's a **universal binary** that runs natively on both Apple Silicon and Intel Macs.
 
-> **First launch (one time):** the app is **unsigned**, so macOS Gatekeeper blocks it the first time. Either **right-click the app → Open → Open**, or run:
-> ```bash
-> xattr -cr "/Applications/Mogi.app"
-> ```
-> After doing this once, it opens normally — this is expected for unsigned apps.
+Builds are **signed with an Apple Developer ID and notarized by Apple**, so the app opens on first launch like any other — no Gatekeeper warning, no right-click → Open, no `xattr` incantation.
 
 Once installed, the app **checks for updates on launch** and shows a banner when a newer version is out; click **Download** and repeat the drag-to-Applications step. For how releases and updates actually work, see [docs/ci-cd-and-auto-update.md](docs/ci-cd-and-auto-update.md).
 

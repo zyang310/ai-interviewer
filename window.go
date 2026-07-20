@@ -36,8 +36,8 @@ func (a *App) OpenInputMonitoringSettings() {
 }
 
 // OpenReleasePage opens a release URL (the GitHub release page or its .zip
-// asset) in the user's default browser so they can download an update. The app
-// is unsigned and does not self-replace — installation is manual.
+// asset) in the user's default browser so they can download an update. There is
+// no self-replacing updater — installation is manual.
 func (a *App) OpenReleasePage(url string) error {
 	if url == "" {
 		return fmt.Errorf("no download URL available")

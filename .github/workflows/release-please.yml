@@ -14,8 +14,8 @@
 # bearing, not decoration. To force a specific version regardless of the commits
 # (e.g. declaring 1.0.0), add a `Release-As: 1.0.0` footer to a commit message.
 #
-# Why batch into a PR instead of releasing every push: the app is unsigned, so
-# every update costs the user a re-download plus the Gatekeeper right-click dance.
+# Why batch into a PR instead of releasing every push: there is no self-replacing
+# updater, so every release costs the user a manual download-and-replace.
 # Releasing per-commit would multiply that friction. See docs/ci-cd-and-auto-update.md.
 name: Release Please
 

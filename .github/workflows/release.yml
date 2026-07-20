@@ -252,7 +252,12 @@ jobs:
         run: |
           cd build/bin
           app="$(ls -d *.app | head -1)"
-          zip="Mogi-${{ steps.ver.outputs.tag }}-macos-universal.zip"
+          # Deliberately NOT versioned. GitHub's permanent
+          #   /releases/latest/download/<name>
+          # URL only resolves when the filename is identical across releases, and
+          # that URL is what lets trymogi.dev link straight at the binary with no
+          # JavaScript. The version is still carried by the release and the tag.
+          zip="Mogi-macos-universal.zip"
           ditto -c -k --keepParent "$app" "$zip"
           echo "zip=build/bin/$zip" >> "$GITHUB_OUTPUT"
           echo "appname=$app" >> "$GITHUB_OUTPUT"

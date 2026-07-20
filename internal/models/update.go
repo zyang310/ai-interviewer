@@ -2,8 +2,8 @@ package models
 
 // UpdateInfo is the result of an app-update check against GitHub Releases,
 // surfaced to the frontend so it can prompt the user to download a newer
-// version. The app is unsigned and does not self-install — DownloadURL points
-// at the release's packaged .zip for the user to install manually.
+// version. The app does not self-install — DownloadURL points at the release's
+// packaged .zip for the user to install manually.
 type UpdateInfo struct {
 	Available      bool   `json:"available"`      // a newer release than the running build exists
 	CurrentVersion string `json:"currentVersion"` // the running app's version (e.g. "v0.1.0" or "dev")

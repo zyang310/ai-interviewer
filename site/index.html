@@ -60,10 +60,13 @@
         </p>
 
         <div class="cta">
+          <!-- GitHub's permanent redirect to the newest release's asset. Works
+               without JavaScript and never needs updating, because release.yml
+               publishes the zip under a fixed, unversioned filename. -->
           <a
             class="btn-primary"
             id="download"
-            href="https://github.com/zyang310/mogi/releases/latest"
+            href="https://github.com/zyang310/mogi/releases/latest/download/Mogi-macos-universal.zip"
           >
             Download for macOS
           </a>
@@ -151,17 +154,12 @@
           <li>Download the <code>.zip</code> above and unzip it.</li>
           <li>Drag <strong>Mogi.app</strong> into your <strong>Applications</strong> folder.</li>
           <li>
-            <strong>Right-click the app → Open → Open.</strong>
+            <strong>Open it. That's it.</strong>
             <div class="callout">
               <p>
-                Mogi isn't code-signed yet, so macOS blocks it on the first
-                launch with <em>"Mogi is damaged and can't be opened."</em> It
-                isn't damaged — right-click → Open adds a permanent exception.
-                You only do this once.
-              </p>
-              <p class="callout-alt">
-                Prefer the terminal?
-                <code>xattr -cr /Applications/Mogi.app</code>
+                Mogi is signed with an Apple Developer ID and notarized by
+                Apple, so it opens straight away — no Gatekeeper warning, no
+                right-click workaround, no Terminal commands.
               </p>
             </div>
           </li>
@@ -337,16 +335,14 @@
     </footer>
 
     <script>
-      // Resolve the newest release so the button links straight at the asset and
-      // the version/size are accurate. The static href above already points at
-      // /releases/latest, so if this fails the page still works — it just costs
-      // the visitor one extra click.
+      // Label the button with the current version and download size. The href is
+      // already a permanent link to the newest asset, so this is presentation
+      // only — if the API is unreachable or rate-limited the button still
+      // downloads the right file, it just reads "Apple Silicon & Intel".
       (function () {
-        var REPO = "zyang310/mogi";
-        var btn = document.getElementById("download");
         var meta = document.getElementById("download-meta");
 
-        fetch("https://api.github.com/repos/" + REPO + "/releases/latest")
+        fetch("https://api.github.com/repos/zyang310/mogi/releases/latest")
           .then(function (r) {
             return r.ok ? r.json() : Promise.reject(r.status);
           })
@@ -354,8 +350,7 @@
             var asset = (rel.assets || []).filter(function (a) {
               return /\.zip$/.test(a.name);
             })[0];
-            if (!asset) return;
-            btn.href = asset.browser_download_url;
+            if (!asset) return; // release with no build attached — say nothing
             meta.textContent =
               rel.tag_name +
               " · " +
@@ -363,7 +358,7 @@
               " MB · Apple Silicon & Intel";
           })
           .catch(function () {
-            /* keep the static fallback */
+            /* leave the static label in place */
           });
       })();
 
