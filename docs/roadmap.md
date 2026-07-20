@@ -8,7 +8,7 @@
 - The **always-on-top floating overlay** bar (a Phase 4 item) was built early — entered via the "Compact" button during a session.
 - **Voice (Phase 2) is built (non-streaming v1).** Click-to-toggle mic → ElevenLabs Scribe (STT) → the normal interview loop → ElevenLabs Flash (TTS) spoken reply when "voice mode" is on. Voice selection lives in Settings; the overlay's "Live" indicator + mic are wired for real. Streaming TTS/AI-text is deferred.
 - **Phase 3 — UX** is in progress: **a global voice hotkey is built** (configurable, default `Right ⌥ Option`; press to start, press again to stop) and the **session history view is built** (expandable past-session list with full transcripts + delete, plus AI-derived problem title + difficulty).
-- **Distribution + auto-update (macOS) is built:** GitHub Actions builds on every push to `main` and publishes a public, downloadable Release on each `vX.Y.Z` tag; the app checks GitHub on launch and shows an "update available" banner. Unsigned (notify-and-download, not silent). See [ci-cd-and-auto-update.md](ci-cd-and-auto-update.md).
+- **Distribution + auto-update (macOS) is built:** GitHub Actions builds, signs, and notarizes on every `vX.Y.Z` tag and publishes a public GitHub Release; the app checks GitHub on launch and shows an "update available" banner whose click downloads, verifies, and installs the new build in place, then restarts on it (self-install, not yet a background/silent check). See [ci-cd-and-auto-update.md](ci-cd-and-auto-update.md).
 - **Managed test accounts are built and deployed (Phase 4 item).** Testers redeem an invite code + email OTP; the app installs developer-funded keys itself. The access service is live on Cloud Run (Firestore + Secret Manager + real OTP mail from `otp@trymogi.dev`), with a console-editable kill switch and per-tester revocation — all drilled against production. BYOK remains an equal first-class mode. See [managed-keys-implementation.md](managed-keys-implementation.md).
 - **Company Practice mode (Phase 6) is built:** a separate "Companies" tab where you pick a real interview-frequency LeetCode problem from ~654 companies, or hit **Mock Interview** for a two-problem draw (easier, then harder). The AI greets you in character and assigns the problem **by reference** (title + difficulty + link, never the statement), then the normal screen-driven loop runs, flavored by the company's style. The default Hub flow is unchanged. See [company-practice-plan.md](company-practice-plan.md).
 
@@ -64,9 +64,10 @@
 
 - [x] CI on every push to `main` ([build.yml](../.github/workflows/build.yml)): `go build`/`test`/`gofmt` + `tsc`, then a universal `wails build` uploaded as a run artifact.
 - [x] Tag-driven public releases ([release.yml](../.github/workflows/release.yml)): pushing `vX.Y.Z` builds the universal `.app`, zips it, and publishes a GitHub Release — the public download *and* the updater's source of truth.
-- [x] In-app update check (`internal/updater` → GitHub releases API, semver compare) surfaced as a hub banner + Settings → About. Installs are manual (notify-and-download).
+- [x] In-app update check (`internal/updater` → GitHub releases API, semver compare) surfaced as a hub banner + Settings → About.
 - [x] **Code signing + notarization** ([release.yml](../.github/workflows/release.yml)): Developer ID signature under the hardened runtime, notarized by Apple and the ticket stapled into the bundle, so Gatekeeper accepts the app with no first-launch workaround. CI falls back to an unsigned build if the signing secrets are absent.
-- [ ] Silent background updates via Sparkle — now unblocked by signing, still **deferred**.
+- [x] **Self-install** (`App.InstallUpdate` → `internal/updater/install.go`): one click downloads the release, verifies it's genuinely signed and notarized, swaps it into place via a detached helper, and restarts the app on the new version. Unblocked by signing — an unverifiable download is refused, never installed.
+- [ ] Silent background updates via Sparkle (periodic check + zero-click apply) — the verify/swap mechanics above already cover what Sparkle would otherwise provide; what's left is real but optional. Still **deferred**.
 
 ### Phase 5 — Stretch goals
 

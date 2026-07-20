@@ -20,11 +20,12 @@ one shipped. Three gaps, three goals:
    out and point the user to it.
 
 The constraints that shaped the design: **macOS only**, and updates that are
-**"notify + download"** rather than silent. The app also shipped *unsigned* at first; it is
-now signed with a Developer ID and notarized by Apple. This guide keeps that history where
-it explains a decision, because the unsigned era is what forced the notify-and-download
-shape in the first place. The rest of it explains what those constraints mean and why they
-lead to the design we have.
+**user-initiated, not silent** — the app checks and shows a banner rather than quietly
+patching itself in the background. The app also shipped *unsigned* at first; it is now
+signed with a Developer ID and notarized by Apple, which is what unlocked the app installing
+its own updates rather than requiring a manual drag-and-replace. This guide keeps that
+history where it explains a decision. The rest of it explains what those constraints mean
+and why they lead to the design we have.
 
 ## Concepts, from first principles
 
@@ -140,31 +141,38 @@ Two details worth knowing, because either can silently spoil a release:
 ### The auto-update spectrum (and why Wails v2 has none built in)
 
 Auto-update isn't one thing; it's a spectrum from "tell the user" to "replace yourself
-while running":
+while running, with no click at all":
 
 ```
-  least automatic                                            most automatic
-  ───────────────────────────────────────────────────────────────────────►
-  Notify + download         Self-replace binary        Framework (Sparkle/WinSparkle)
-  (show a banner,           (app downloads the new      (background download, verify
-   user installs)            build and swaps itself)     signature, swap, relaunch)
-        ▲                                                        ▲
-        │ where we are                                           │ needs code signing
+  least automatic                                                    most automatic
+  ───────────────────────────────────────────────────────────────────────────────────►
+  Notify + download          Self-replace binary            Framework (Sparkle/WinSparkle)
+  (show a banner,            (app downloads the build,      (periodic background check,
+   user drags it in)         verifies it, swaps itself,      silent apply, no click —
+                              relaunches — one click)         relaunches on its own)
+                                     ▲
+                                     │ where we are
 ```
 
-Frameworks like **Sparkle** (the macOS standard) do the fully-silent version, but they
-**verify a cryptographic signature** before applying an update and rely on the app being
-signed/notarized so the swapped-in copy isn't quarantined. Electron and Tauri ship updaters
-in this family; **Wails v2 ships no auto-updater at all**, so whatever we do, we build it
-ourselves.
+Frameworks like **Sparkle** (the macOS standard) do the fully-silent version: a periodic
+background check with no launch required, and an apply step the user never has to trigger.
+They also **verify a cryptographic signature** before applying an update and rely on the app
+being signed/notarized so the swapped-in copy isn't quarantined — the same two things
+`internal/updater/install.go` already does by hand for the middle position. Electron and
+Tauri ship updaters in this family; **Wails v2 ships no auto-updater at all**, so whatever we
+do, we build it ourselves.
 
-We sit at the **left end of the spectrum**: the app checks GitHub, and if there's something
-newer it shows a banner and opens the download; the user drags the new build into
-`/Applications`. Originally that was not a choice — unsigned ruled out a safe silent swap,
-so the left end was the only end available. Signing has since removed that block, which
-turns "move right on the spectrum" from an impossibility into an option. It stays deferred
-because the remaining cost is real (embed Sparkle, host a signed appcast feed) and one drag
-per update is mild.
+We used to sit at the **left end**: the app checked GitHub and opened a download, and the
+user dragged the new build into `/Applications` by hand. That was not a choice — shipping
+unsigned ruled out a safe silent swap, since there was no way to prove a downloaded build
+was genuinely ours. Signing removed that block, and `InstallUpdate` (`app.go`,
+`internal/updater/install.go`) now occupies the **self-replace** position: one click
+downloads, verifies, swaps, and relaunches. What's left between here and Sparkle is entirely
+about *when* the check happens and *whether a click is required* — the verify-and-swap
+mechanics are already the same. That gap stays deferred because reaching it costs a nested
+framework, a hosted signed appcast feed, and reworking `release.yml`'s current assumption
+that the bundle carries no nested code (see the signing section above) — real costs against
+a click that already takes a few seconds.
 
 ## How the pipeline works, end-to-end
 
@@ -248,7 +256,7 @@ variable at **build time** without changing source. Our `main.go` declares
 `var version = "dev"`; the linker overwrites `"dev"` with the tag. Local builds keep
 `"dev"`, which (as we'll see) is exactly what suppresses update nags during development.
 
-## How the in-app updater works
+## How the update check works
 
 The check lives in the Go backend ([internal/updater/updater.go](../internal/updater/updater.go)),
 consistent with the project rule that *all* external HTTP calls happen in Go — the same
@@ -273,9 +281,9 @@ the result.
      │                 └─ semver.Compare(latestTag, version) > 0  ──► {available:true, …urls}
      │
      ▼
-  available?  ──► <UpdateBanner> on the hub  ──►  [Download] ──► App.OpenReleasePage(url)
-                  (idle screens only; never                       opens the .zip / release
-                   over the overlay or mid-interview)             page in the browser
+  available?  ──► <UpdateBanner> on the hub  ──►  [Update & Restart] ──► App.InstallUpdate(url)
+                  (idle screens only; never                                (see the next section)
+                   over the overlay or mid-interview)
 ```
 
 Three details worth calling out, because they're the kind of thing an interviewer probes:
@@ -292,19 +300,87 @@ Three details worth calling out, because they're the kind of thing an interviewe
   compare would get that wrong). The logic is a pure function (`isNewer`) with table tests
   in [updater_test.go](../internal/updater/updater_test.go).
 
+## How self-install works
+
+Clicking **Update & Restart** calls `App.InstallUpdate(downloadURL)` (`app.go`), which
+delegates to `updater.Install` (`internal/updater/install.go`, macOS-only — see
+`install_other.go` for the stub everywhere else) and then quits the app:
+
+```
+  [Update & Restart] ──► App.InstallUpdate(url)
+                              │
+                              ├─ version == "dev"?             ──► refuse (nothing to swap)
+                              ├─ a session is active?          ──► refuse ("end it first")
+                              │
+                              ▼
+                    updater.Install(ctx, url)
+                              │
+                              │  1. download the .zip to a temp dir
+                              │  2. ditto -x -k   (extract — NOT archive/zip; ditto keeps
+                              │       symlinks/resource forks/xattrs intact, any of which
+                              │       archive/zip would drop and invalidate the signature)
+                              │  3. codesign --verify --deep --strict
+                              │  4. spctl --assess --type execute
+                              │       (either failing aborts here — nothing is touched or
+                              │        installed; the same two checks release.yml itself
+                              │        runs before publishing, see above)
+                              │  5. spawn a detached helper (setsid), pass it our pid
+                              │
+                              ▼
+                    App.InstallUpdate quits the app   (window.go: runtime.Quit)
+                              │
+                              ▼
+        detached helper, running independently of the app that spawned it:
+          while kill -0 $PID; do sleep 0.2; done   ← waits for us to actually exit
+          mv  Mogi.app      Mogi.app.old
+          mv  <downloaded>  Mogi.app
+          rm -rf            Mogi.app.old
+          open              Mogi.app                ──► new version launches
+          rm -rf            <temp dir>
+```
+
+Worth calling out:
+
+- **Verification is a hard gate, not a warning.** A downloaded build that fails either
+  `codesign` or `spctl` is never installed — the function returns an error before anything
+  quits. It's the same trust boundary Gatekeeper enforces on a human double-clicking the
+  app; self-install just checks it programmatically first, so a corrupted download or a
+  bad redirect can't silently become the running app.
+- **The swap happens outside the process being replaced.** A running program can't safely
+  overwrite the bundle it's executing from, so `Install` hands off to a `/bin/sh` helper,
+  detached with `Setsid` so it survives this process exiting, that waits for our pid to
+  disappear before touching anything.
+- **The helper deliberately does not get the request's `context.Context`.** Every other
+  shelled-out command in this file (`ditto`, `codesign`, `spctl`) uses
+  `exec.CommandContext(ctx, …)`, so it's cancelled if the app shuts down mid-check. The swap
+  helper is the one exception: `ctx` dies with this process, and `exec.CommandContext`
+  SIGKILLs its child the instant that happens — which would kill the helper before it ever
+  got to run. It's started with plain `exec.Command` instead, specifically so it outlives us.
+- **Two refusals happen before any of this starts.** A `dev` build has no published release
+  to compare against and nothing sensible to swap into, and a live interview session is
+  refused the same way `ClearAllLocalData` refuses mid-session (`a.interview.ActiveID()`) —
+  installing pulls the rug out from under whatever's on screen.
+- **First install still can't use any of this.** There's no already-running app to click
+  "Update & Restart" from — the very first copy on a machine is still download → unzip →
+  drag → open, same as always.
+
 ## The install & update experience, concretely
 
-What "signed + notify-and-download" actually means for a user:
+What this actually means for a user:
 
 1. **First install:** download `.zip` → unzip → drag `Mogi.app` to `/Applications` → open
-   it. No warning, no workaround.
-2. **An update ships:** on next launch the app shows *"A new version is available."* →
-   **Download** opens the new `.zip` → the user repeats the drag.
+   it. No warning, no workaround. (Nothing can shortcut this one — there's no running app
+   yet for anything to self-install from.)
+2. **An update ships:** on next launch the app shows *"A new version is available."* → click
+   **Update & Restart** → the app downloads it, verifies it's a genuine signed Mogi build,
+   and relaunches on the new version. A few seconds, one click, no Finder involved.
 
-It is **not** a silent background swap. That ceiling used to be set by the absence of code
-signing; now it's set by the app design — we simply haven't embedded an updater framework.
-The honest framing: $99/year bought away the security-warning friction, and what remains is
-one drag per update, which isn't yet painful enough to justify Sparkle's complexity.
+It is **not** a silent background swap: the app only checks at launch (not on a timer while
+running), and applying it still takes an explicit click. That remaining gap is app design,
+not a technical ceiling — Wails ships no updater framework, so closing it means embedding one
+(Sparkle) rather than flipping a setting. The honest framing: signing bought away both the
+security-warning friction *and* the manual drag; what's left is a click and a few seconds,
+which isn't yet painful enough to justify Sparkle's complexity.
 
 ## Design decisions & trade-offs
 
@@ -317,22 +393,25 @@ deliberate act.
 **Computed versions, but a human-gated release.** These are two decisions, and it's worth
 separating them. *Computing* the version from commit messages removes hand arithmetic and a
 hand-written changelog — pure upside, no judgement lost, since the prefixes were already
-being written. *Publishing* is still gated on a human merging the Release PR, and that
-gate is deliberate: there is no self-replacing updater, so every release a user installs
-costs them a manual download-and-replace. Auto-tagging each `fix:` would multiply that
-friction across users for no benefit. Batching several commits into one release is
-therefore not laziness — it's the correct response to the distribution constraint. (Signing
-has since removed the *Gatekeeper* half of that friction but not the manual replace; if
-Sparkle ever lands and updates go silent, the argument for batching weakens and
-auto-release-on-every-fix becomes reasonable.)
+being written. *Publishing* is still gated on a human merging the Release PR, and that gate
+is deliberate: every release a user installs costs them a restart, even now that installing
+one is a single click. Auto-tagging each `fix:` would multiply restart-prompts across users
+for no benefit. Batching several commits into one release is therefore not laziness — it's
+the correct response to the distribution constraint. (Signing removed the *Gatekeeper* half
+of the old friction, and self-install removed the *manual replace* half; what's left is the
+interruption itself. If a Sparkle-style background updater ever lands — checking
+periodically instead of only at launch, applying without a click — the argument for batching
+weakens further and auto-release-on-every-fix becomes reasonable.)
 
 The standing Release PR also doubles as a **preview**: the proposed version number and the
 generated changelog are visible, and `build.yml` runs against them, before anything is
 public.
 
-**Notify-and-download, not silent.** Covered above — originally forced by shipping
-unsigned, kept afterwards because Wails has no built-in updater and the banner is the
-robust option regardless.
+**Notify-and-install, not silent.** Covered above — the app checks once at launch and waits
+for a click rather than polling in the background and applying on its own. Originally that
+shape was forced by shipping unsigned (no safe silent swap was even possible); now it's a
+scope choice, since closing the remaining gap means embedding a framework like Sparkle
+rather than adjusting what's already here.
 
 **The update check lives in Go, not the frontend.** Every other external call in this app
 is centralized in the Go backend (`internal/ai`, `internal/voice`, `internal/googletts`),
@@ -397,6 +476,13 @@ wails build -ldflags "-X main.version=v0.0.1"
 open build/bin/Mogi.app
 ```
 
+This proves the *check* and the banner. It can't prove the *install*, on purpose: a local
+`wails build` has no signing secrets, so `verifySignedAndNotarized` correctly refuses it —
+clicking **Update & Restart** against a local build fails verification and surfaces that
+error instead of installing something unverified. Exercising the real swap-and-relaunch path
+needs an actual published release; there is deliberately no test bypass for the signature
+check that would let a local build stand in for one.
+
 **Where the version shows** — Settings → **About** (calls `GetAppVersion`), and macOS
 Finder → *Get Info* (from the plist).
 
@@ -427,18 +513,25 @@ This covers "how many downloads." Counting **sessions run** is a different probl
 session lives only in the user's local SQLite (`internal/store`), so there is no way to
 know without adding a telemetry backend — deliberately out of scope for now.
 
-## Later: the path to silent updates
+## Later: fully silent updates
 
 This was planned as a two-step upgrade to be done if an Apple Developer account ever
-arrived. **Step 1 has since shipped:**
+arrived. **Both steps have since shipped, in this order:**
 
 1. ~~Add **signing + notarization** to `release.yml`.~~ **Done** — Apple certs in GitHub
    Secrets, `codesign` + `notarytool` + `stapler` steps. This alone removed the Gatekeeper
    step for users.
-2. Embed **[Sparkle](https://sparkle-project.org)** in the app and publish a signed
-   `appcast.xml` feed (the release assets or GitHub Pages can host it). Swap the
-   notify-banner for Sparkle's background updater.
+2. ~~Have the app **install its own updates**.~~ **Done** — `InstallUpdate` downloads,
+   verifies, swaps, and relaunches on a click (see "How self-install works" above). This was
+   originally scoped as "embed Sparkle"; a home-grown version turned out to need no nested
+   framework, no cgo bridge, and no hosted appcast feed — just `ditto`/`codesign`/`spctl`
+   shelled out from Go, which is also why `release.yml`'s "no nested code" signing
+   assumption never had to change.
 
-Step 1 landing without touching a line of the version/tag/release plumbing is the evidence
-for the claim this guide made in advance: only the install experience changed. Step 2 would
-change the "apply" step the same way, and remains optional.
+What's left is narrower than the original plan: not "add self-installing," but **"make the
+check and apply happen without a click"** — a periodic background check while the app is
+running (today it only checks at launch), and applying without the user pressing **Update &
+Restart**. That's genuinely what a framework like Sparkle buys at this point, since the
+signature-verification and swap-and-relaunch mechanics it would otherwise provide already
+exist here. It remains optional: a background timer and a truly silent apply are a real
+scope increase for a personal project, against a click that already takes a few seconds.

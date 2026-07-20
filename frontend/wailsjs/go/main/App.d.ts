@@ -34,6 +34,8 @@ export function GetPreferences():Promise<models.Preferences>;
 
 export function GetSessionTranscript(arg1:string):Promise<Array<models.Message>>;
 
+export function InstallUpdate(arg1:string):Promise<void>;
+
 export function ListAvailableModels():Promise<Array<models.Model>>;
 
 export function ListCompanies():Promise<Array<models.CompanyInfo>>;

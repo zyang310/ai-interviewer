@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CheckForUpdate, OpenReleasePage, OpenURL, models } from "../../lib/wailsBridge";
+import { CheckForUpdate, InstallUpdate, OpenReleasePage, OpenURL, models } from "../../lib/wailsBridge";
 import MogiLogo from "../common/MogiLogo";
 import "./AboutSection.css";
 
@@ -27,6 +27,7 @@ interface Props {
 // check (mirrors the launch-time banner), and project links.
 export default function AboutSection({ appVersion, goos, setError, setSuccess }: Props) {
   const [checking, setChecking] = useState(false);
+  const [installing, setInstalling] = useState(false);
   const [updateInfo, setUpdateInfo] = useState<models.UpdateInfo | null>(null);
   const [checkedOnce, setCheckedOnce] = useState(false);
 
@@ -43,6 +44,25 @@ export default function AboutSection({ appVersion, goos, setError, setSuccess }:
       setError(e?.message || String(e));
     } finally {
       setChecking(false);
+    }
+  }
+
+  // Installs the checked update in place: downloads, verifies the signature,
+  // and quits the app so a detached helper can swap the bundle and relaunch it.
+  // Falls back to the release page when there's no packaged asset to install.
+  async function installUpdate() {
+    if (!updateInfo?.downloadUrl) {
+      OpenReleasePage(updateInfo?.releaseUrl || "").catch(() => {});
+      return;
+    }
+    setInstalling(true);
+    setError("");
+    try {
+      await InstallUpdate(updateInfo.downloadUrl);
+      // Resolving means the app is already quitting to install — nothing left to do.
+    } catch (e: any) {
+      setInstalling(false);
+      setError(e?.message || String(e));
     }
   }
 
@@ -93,14 +113,14 @@ export default function AboutSection({ appVersion, goos, setError, setSuccess }:
           <h3 className="settings-card-title">Software updates</h3>
         </div>
         <p className="settings-hint">
-          Releases are published on GitHub. Updating means downloading the new
-          build and replacing the app in Applications.
+          Releases are published on GitHub. Updating downloads the new build,
+          verifies it, and restarts the app on the new version.
         </p>
         <div className="about-update-row">
           <button
             className="btn btn-primary btn-icon"
             onClick={checkForUpdate}
-            disabled={checking}
+            disabled={checking || installing}
           >
             <span className="material-symbols-outlined">refresh</span>
             {checking ? "Checking…" : "Check for updates"}
@@ -108,12 +128,11 @@ export default function AboutSection({ appVersion, goos, setError, setSuccess }:
           {updateInfo?.available && (
             <button
               className="btn btn-ghost btn-icon"
-              onClick={() =>
-                OpenReleasePage(updateInfo.downloadUrl || updateInfo.releaseUrl)
-              }
+              onClick={installUpdate}
+              disabled={installing}
             >
               <span className="material-symbols-outlined">download</span>
-              Download {updateInfo.latestVersion}
+              {installing ? "Installing…" : `Update to ${updateInfo.latestVersion}`}
             </button>
           )}
           {checkedOnce && !checking && (

@@ -553,7 +553,7 @@ function App() {
         {/* Update-available banner — idle screens only, never over the overlay
             or mid-interview (preserves the transparent overlay invariant). */}
         {update && !isActive && (
-          <UpdateBanner update={update} onDismiss={dismissUpdate} />
+          <UpdateBanner update={update} onDismiss={dismissUpdate} onError={setError} />
         )}
 
         {/* Warning banner (approaching time limit) */}

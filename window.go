@@ -36,14 +36,20 @@ func (a *App) OpenInputMonitoringSettings() {
 }
 
 // OpenReleasePage opens a release URL (the GitHub release page or its .zip
-// asset) in the user's default browser so they can download an update. There is
-// no self-replacing updater — installation is manual.
+// asset) in the user's default browser so they can download an update
+// manually — the fallback path when InstallUpdate isn't available or fails.
 func (a *App) OpenReleasePage(url string) error {
 	if url == "" {
 		return fmt.Errorf("no download URL available")
 	}
 	runtime.BrowserOpenURL(a.ctx, url)
 	return nil
+}
+
+// quitForInstall closes the app once InstallUpdate has a swap helper waiting
+// in the wings, so it can safely replace this running .app and relaunch it.
+func (a *App) quitForInstall() {
+	runtime.Quit(a.ctx)
 }
 
 // emitManagedChanged notifies the frontend that the managed test-account state

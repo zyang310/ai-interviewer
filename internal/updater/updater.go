@@ -1,9 +1,8 @@
-// Package updater checks GitHub Releases for a newer version of the app and
-// reports whether one is available, so the frontend can prompt the user to
-// download it. It never installs anything: there is no self-replacing updater,
-// so the user downloads the new build and replaces it manually (see
-// docs/ci-cd-and-auto-update.md). All network access is here, mirroring the
-// "external calls live in the Go backend" pattern in internal/ai/client.go.
+// Package updater checks GitHub Releases for a newer version of the app,
+// reports whether one is available (Check), and can install it in place
+// (Install, macOS-only — see install.go and install_other.go). All network
+// access is here, mirroring the "external calls live in the Go backend"
+// pattern in internal/ai/client.go. See docs/ci-cd-and-auto-update.md.
 package updater
 
 import (

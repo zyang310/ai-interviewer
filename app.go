@@ -372,6 +372,28 @@ func (a *App) CheckForUpdate() (models.UpdateInfo, error) {
 	return updater.Check(a.ctx, version)
 }
 
+// InstallUpdate downloads downloadURL, verifies it is a genuine signed and
+// notarized Mogi build, and hands off to a detached helper that swaps it into
+// place and relaunches once this process exits — then quits the app to let
+// that happen. Refused during a local dev build (nothing installed to swap)
+// or a live session (end it first, same guard as ClearAllLocalData). A
+// verification or download failure returns before anything is touched or the
+// app quits, so the frontend can show the error and the user can fall back to
+// OpenReleasePage.
+func (a *App) InstallUpdate(downloadURL string) error {
+	if version == "dev" {
+		return fmt.Errorf("cannot self-update a local dev build")
+	}
+	if a.interview.ActiveID() != "" {
+		return fmt.Errorf("end the active session before installing an update")
+	}
+	if err := updater.Install(a.ctx, downloadURL); err != nil {
+		return err
+	}
+	a.quitForInstall()
+	return nil
+}
+
 // ---------------------------------------------------------------------------
 // Voice (delegated to the service layer)
 // ---------------------------------------------------------------------------

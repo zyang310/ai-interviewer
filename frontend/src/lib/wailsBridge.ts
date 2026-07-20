@@ -17,6 +17,7 @@ export {
   GetLatestScreenshot,
   GetPreferences,
   GetSessionTranscript,
+  InstallUpdate,
   ListAvailableModels,
   ListCompanies,
   ListCompanyProblems,
