@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.1](https://github.com/zyang310/mogi/compare/v0.12.0...v0.12.1) (2026-07-20)
+
+
+### Bug Fixes
+
+* update macOS permission references from Input Monitoring to Accessibility ([4b05a13](https://github.com/zyang310/mogi/commit/4b05a131fbda81d62754dfa7cc38b90b7611a763))
+
 ## [0.12.0](https://github.com/zyang310/mogi/compare/v0.11.1...v0.12.0) (2026-07-20)
 
 
