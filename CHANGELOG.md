@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.0](https://github.com/zyang310/mogi/compare/v0.11.1...v0.12.0) (2026-07-20)
+
+
+### Features
+
+* implement self-installing updates for macOS ([57ef0b9](https://github.com/zyang310/mogi/commit/57ef0b9aab0352bc837ace3014c70ce823b23ece))
+
 ## [0.11.1](https://github.com/zyang310/mogi/compare/v0.11.0...v0.11.1) (2026-07-20)
 
 
