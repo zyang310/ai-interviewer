@@ -26,7 +26,7 @@ export {
   ListStarredCompanies,
   ListVoices,
   MinimiseWindow,
-  OpenInputMonitoringSettings,
+  OpenAccessibilitySettings,
   OpenReleasePage,
   OpenURL,
   PreviewVoice,

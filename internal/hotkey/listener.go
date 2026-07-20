@@ -63,7 +63,7 @@ func (m *matcher) allHeld() bool {
 }
 
 // Status is a snapshot of the listener for the Settings UI — chiefly to drive
-// the macOS Input-Monitoring permission hint.
+// the macOS Accessibility permission hint.
 type Status struct {
 	Running     bool   `json:"running"`     // hook is up and push-to-talk is enabled
 	HookEnabled bool   `json:"hookEnabled"` // the OS hook has delivered at least one event

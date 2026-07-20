@@ -68,7 +68,7 @@ export function comboFromKeyboardEvent(e: KeyLike): string {
 // Keycap tokens for rendering a hotkey as individual keys. Right-hand modifiers
 // split into a "Right" cap + the glyph so the physical key reads clearly.
 // Mac-style glyphs — the global hotkey is used mainly on macOS (where it needs
-// Input Monitoring), matching the Settings copy.
+// Accessibility), matching the Settings copy.
 const KEYCAP_TOKENS: Record<string, string[]> = {
   Ctrl: ["⌃"],
   Alt: ["⌥"],

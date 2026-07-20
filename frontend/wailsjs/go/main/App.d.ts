@@ -52,7 +52,7 @@ export function ListVoices():Promise<Array<models.Voice>>;
 
 export function MinimiseWindow():Promise<void>;
 
-export function OpenInputMonitoringSettings():Promise<void>;
+export function OpenAccessibilitySettings():Promise<void>;
 
 export function OpenReleasePage(arg1:string):Promise<void>;
 

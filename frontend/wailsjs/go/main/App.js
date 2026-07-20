@@ -98,8 +98,8 @@ export function MinimiseWindow() {
   return window['go']['main']['App']['MinimiseWindow']();
 }
 
-export function OpenInputMonitoringSettings() {
-  return window['go']['main']['App']['OpenInputMonitoringSettings']();
+export function OpenAccessibilitySettings() {
+  return window['go']['main']['App']['OpenAccessibilitySettings']();
 }
 
 export function OpenReleasePage(arg1) {

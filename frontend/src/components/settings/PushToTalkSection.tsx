@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { OpenInputMonitoringSettings, models, hotkey } from "../../lib/wailsBridge";
+import { OpenAccessibilitySettings, models, hotkey } from "../../lib/wailsBridge";
 import { comboFromKeyboardEvent, bareModifierFromCode, hotkeyKeycaps } from "../../lib/hotkey";
 import "./PushToTalkSection.css";
 
@@ -15,7 +15,7 @@ interface Props {
 
 // PushToTalkSection is the Settings → Voice Hotkey pane: the enable toggle, the
 // key-capture chip that binds a new global hotkey, and a footer strip showing
-// whether the OS-level hook is live (with the macOS Input Monitoring shortcut).
+// whether the OS-level hook is live (with the macOS Accessibility shortcut).
 export default function PushToTalkSection({
   prefs,
   saving,
@@ -79,15 +79,15 @@ export default function PushToTalkSection({
     setTimeout(onRefreshHotkeyStatus, 600);
   }
 
-  // Voice-hotkey footer state. Off → muted; on but (macOS) still awaiting Input
-  // Monitoring → warning with a shortcut to grant it; otherwise the hook is live.
+  // Voice-hotkey footer state. Off → muted; on but (macOS) still awaiting
+  // Accessibility → warning with a shortcut to grant it; otherwise the hook is live.
   const pttEnabled = !!prefs?.pushToTalkEnabled;
-  const needsInputMonitoring =
+  const needsAccessibility =
     hkStatus?.goos === "darwin" && pttEnabled && !hkStatus.hookEnabled;
   const hotkeyStatus: { tone: "off" | "active" | "warning"; text: string } = !pttEnabled
     ? { tone: "off", text: "Voice hotkey is off" }
-    : needsInputMonitoring
-      ? { tone: "warning", text: "Needs Input Monitoring — enable Mogi, then relaunch" }
+    : needsAccessibility
+      ? { tone: "warning", text: "Needs Accessibility — enable Mogi, then relaunch" }
       : { tone: "active", text: "Global hotkey is active" };
 
   return (
@@ -186,7 +186,7 @@ export default function PushToTalkSection({
             <button
               type="button"
               className="hotkey-status-action"
-              onClick={() => OpenInputMonitoringSettings()}
+              onClick={() => OpenAccessibilitySettings()}
               disabled={saving}
             >
               Open settings

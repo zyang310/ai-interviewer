@@ -29,10 +29,13 @@ func (a *App) OpenURL(url string) error {
 	return nil
 }
 
-// OpenInputMonitoringSettings opens macOS System Settings at the Input
-// Monitoring pane, where the user grants the permission the global hotkey needs.
-func (a *App) OpenInputMonitoringSettings() {
-	runtime.BrowserOpenURL(a.ctx, "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent")
+// OpenAccessibilitySettings opens macOS System Settings at the Accessibility
+// pane, where the user grants the permission the global hotkey needs.
+// (AXIsProcessTrustedWithOptions in internal/hotkey/permission_darwin.go is
+// the actual gate — not Input Monitoring, a separate TCC permission this
+// deep-link used to point at by mistake.)
+func (a *App) OpenAccessibilitySettings() {
+	runtime.BrowserOpenURL(a.ctx, "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
 }
 
 // OpenReleasePage opens a release URL (the GitHub release page or its .zip

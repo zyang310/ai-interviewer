@@ -57,7 +57,7 @@ App.tsx  EventsOn("ptt:down")  ── gated on prefs.pushToTalkEnabled
 - [keymap_test.go](../internal/hotkey/keymap_test.go): parse round-trips, labels, keycode lookup, and matcher edges (combo, auto-repeat, release order, reuse).
 
 ### Wiring — [app.go](../app.go)
-`hotkey *hotkey.Listener` field (constructed in `NewApp`). `startHotkeyFromPrefs()` parses the saved key (falling back to `DefaultSpec`) and calls `Apply(ctx, enabled, spec)`; it runs from `startup` and at the end of `UpdatePreferences` (so toggling/rebinding takes effect live), with `Shutdown()` in `shutdown`. Two bound methods: `GetHotkeyStatus() hotkey.Status` and `OpenInputMonitoringSettings()` (macOS deep-link).
+`hotkey *hotkey.Listener` field (constructed in `NewApp`). `startHotkeyFromPrefs()` parses the saved key (falling back to `DefaultSpec`) and calls `Apply(ctx, enabled, spec)`; it runs from `startup` and at the end of `UpdatePreferences` (so toggling/rebinding takes effect live), with `Shutdown()` in `shutdown`. Two bound methods: `GetHotkeyStatus() hotkey.Status` and `OpenAccessibilitySettings()` (macOS deep-link).
 
 ### Preferences
 `PushToTalkEnabled bool` (default **true**) + `PushToTalkKey string` (default `"RightAlt"`) on [session.go](../internal/models/session.go), persisted via the existing key-value pattern in [preferences.go](../internal/store/preferences.go) (bool stored as `"1"/"0"`).
@@ -65,12 +65,12 @@ App.tsx  EventsOn("ptt:down")  ── gated on prefs.pushToTalkEnabled
 ### Frontend
 - [App.tsx](../frontend/src/App.tsx): `handleMicToggle` (shared by the mic button and the hotkey) toggles `startRecording` / `stopAndSend`. A single `EventsOn("ptt:down")` effect, gated on `prefs.pushToTalkEnabled`, invokes it via a **latest-closure ref** (subscribe once, never stale, no re-subscribe churn). Guards: `pttBusyRef` serializes overlapping presses, session-gating + STT check inside `startRecording`, barge-in over TTS, and a 5-min safety auto-stop.
 - [hotkey.ts](../frontend/src/lib/hotkey.ts): browser mirror of the Go keymap for the Settings capture UI (`comboFromKeyboardEvent` on a main-key press, `bareModifierFromCode` for a modifier alone). Uses `e.code` (physical key) to stay layout-independent and match the Go side.
-- [wailsBridge.ts](../frontend/src/lib/wailsBridge.ts): re-exports `GetHotkeyStatus`, `OpenInputMonitoringSettings`, and the runtime `EventsOn`/`EventsOff` (single import point).
-- [Settings.tsx](../frontend/src/components/Settings.tsx): a **Voice Hotkey** section — On/Off segmented toggle, a "set hotkey" capture button (press any key/combo; Esc cancels; Reset to default), and a macOS Input-Monitoring hint that appears when enabled but the hook isn't confirmed live.
+- [wailsBridge.ts](../frontend/src/lib/wailsBridge.ts): re-exports `GetHotkeyStatus`, `OpenAccessibilitySettings`, and the runtime `EventsOn`/`EventsOff` (single import point).
+- [Settings.tsx](../frontend/src/components/Settings.tsx): a **Voice Hotkey** section — On/Off segmented toggle, a "set hotkey" capture button (press any key/combo; Esc cancels; Reset to default), and a macOS Accessibility hint that appears when enabled but the hook isn't confirmed live.
 
-## macOS Input Monitoring
+## macOS Accessibility
 
-libuiohook installs a `CGEventTap`, gated behind **Privacy & Security → Input Monitoring**. It can't be granted programmatically; macOS prompts on first hook start and usually needs a relaunch after enabling. Surfaced in Settings via `GetHotkeyStatus` (hint shows while `enabled && !hookEnabled` on darwin) + an "Open Input Monitoring settings" button (`OpenInputMonitoringSettings`). The click-to-toggle mic keeps working regardless (it only needs the mic permission). **Windows needs no permission.**
+libuiohook installs a `CGEventTap`, gated behind **Privacy & Security → Accessibility** — checked via `AXIsProcessTrustedWithOptions` (`internal/hotkey/permission_darwin.go`), the same call libuiohook makes internally. (Not **Input Monitoring**: that's a separate TCC permission this feature doesn't use, despite the name being the more common association with global key listening — an earlier version of this deep-link pointed there by mistake.) It can't be granted programmatically; macOS prompts on first hook start (with `kAXTrustedCheckOptionPrompt`, so the OS dialog appears automatically) and usually needs a relaunch after enabling. Surfaced in Settings via `GetHotkeyStatus` (hint shows while `enabled && !hookEnabled` on darwin) + an "Open settings" button (`OpenAccessibilitySettings`). The click-to-toggle mic keeps working regardless (it only needs the mic permission). **Windows needs no permission.**
 
 ## Caveats
 - **Passive leak** (by design): the held key also reaches the IDE. A combo can type, trigger app shortcuts, or — on macOS — ring the **unhandled-key alert beep** on every auto-repeat. Hence the bare-modifier default; combos remain available for those who want them.
@@ -80,7 +80,7 @@ libuiohook installs a `CGEventTap`, gated behind **Privacy & Security → Input 
 
 ## Verification
 - Automated: `go build/vet/test ./...` (incl. the matcher/parse tests) + `gofmt`; frontend `tsc --noEmit` + `vite build`; full `wails build` (CGO linked, frontend embedded, packaged). All green.
-- Native (manual, in `wails dev`): grant Input Monitoring + relaunch; with another app focused and a session active, **tap** the hotkey (default Right ⌥ Option) → records; **tap again** → transcribes and sends; a fast second tap during transcription doesn't double-trigger; the mic button still toggles; barge-in stops TTS; rebinding (e.g. to `F8`) takes effect live without a crash. (The exact keycodes macOS reports can only be confirmed at runtime; the mapping follows gohook's convention.)
+- Native (manual, in `wails dev`): grant Accessibility + relaunch; with another app focused and a session active, **tap** the hotkey (default Right ⌥ Option) → records; **tap again** → transcribes and sends; a fast second tap during transcription doesn't double-trigger; the mic button still toggles; barge-in stops TTS; rebinding (e.g. to `F8`) takes effect live without a crash. (The exact keycodes macOS reports can only be confirmed at runtime; the mapping follows gohook's convention.)
 
 ## Possible follow-ups
 - An overlay "Press ⌥ to talk" hint while idle.
