@@ -49,7 +49,8 @@ export default function AboutSection({ appVersion, goos, setError, setSuccess }:
 
   // Installs the checked update in place: downloads, verifies the signature,
   // and quits the app so a detached helper can swap the bundle and relaunch it.
-  // Falls back to the release page when there's no packaged asset to install.
+  // The backend only reports "available" when the .zip asset exists, so the
+  // release-page fallback here is pure defense.
   async function installUpdate() {
     if (!updateInfo?.downloadUrl) {
       OpenReleasePage(updateInfo?.releaseUrl || "").catch(() => {});
@@ -141,6 +142,18 @@ export default function AboutSection({ appVersion, goos, setError, setSuccess }:
                 <span className="about-update-dot" />
                 {updateInfo.latestVersion} available — you have{" "}
                 {updateInfo.currentVersion}
+              </span>
+            ) : updateInfo?.latestVersion &&
+              updateInfo.latestVersion !== updateInfo.currentVersion ? (
+              // A newer release exists but its build isn't attached yet (the
+              // backend only reports "available" once the .zip is installable):
+              // release.yml is still signing/notarizing. Both versions are
+              // release tags here — dev builds never reach this state, so a
+              // plain inequality is a safe "newer" check.
+              <span className="about-update-status about-update-status--muted">
+                <span className="about-update-dot" />
+                {updateInfo.latestVersion} is publishing — the build is being
+                signed and notarized, check back in a few minutes
               </span>
             ) : updateInfo?.latestVersion ? (
               <span className="about-update-status about-update-status--ok">

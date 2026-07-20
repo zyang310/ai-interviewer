@@ -278,7 +278,8 @@ the result.
      │                 ├─ GET api.github.com/repos/zyang310/mogi/releases/latest
      │                 │      (404 = no releases yet ──► {available:false}, not an error)
      │                 │
-     │                 └─ semver.Compare(latestTag, version) > 0  ──► {available:true, …urls}
+     │                 └─ semver.Compare(latestTag, version) > 0
+     │                    AND the release has its .zip attached   ──► {available:true, …urls}
      │
      ▼
   available?  ──► <UpdateBanner> on the hub  ──►  [Update & Restart] ──► App.InstallUpdate(url)
@@ -299,6 +300,15 @@ Three details worth calling out, because they're the kind of thing an interviewe
   `golang.org/x/mod/semver` (`IsValid` + `Compare`), so `v0.10.0 > v0.9.0` (a naive string
   compare would get that wrong). The logic is a pure function (`isNewer`) with table tests
   in [updater_test.go](../internal/updater/updater_test.go).
+- **"Available" means installable, not just released.** release-please publishes the
+  GitHub Release (tag + changelog) the instant the Release PR merges, but the signed
+  `.zip` is attached by release.yml only after notarization — a window that has run past
+  an hour. During it, `releases/latest` is a release with no assets; offering it would
+  give the user a button that can only open a release page with nothing on it (exactly
+  what a pre-gate build did). So `infoFromRelease` requires the asset before setting
+  `available`, the banner stays hidden until the update is truly one click, and the About
+  pane — which still gets `latestVersion` — says the build is publishing instead of the
+  false "up to date".
 
 ## How self-install works
 

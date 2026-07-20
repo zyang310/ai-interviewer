@@ -32,6 +32,36 @@ func TestIsNewer(t *testing.T) {
 	}
 }
 
+// TestInfoFromRelease covers the availability decision, in particular the
+// release-please window where the GitHub Release exists but release.yml hasn't
+// attached the notarized .zip yet: the update must NOT be offered (there is
+// nothing to install), while LatestVersion still reports what's coming.
+func TestInfoFromRelease(t *testing.T) {
+	zip := ghAsset{Name: "Mogi-macos-universal.zip", BrowserDownloadURL: "https://example/app.zip"}
+
+	cases := []struct {
+		name          string
+		current       string
+		rel           ghRelease
+		wantAvailable bool
+	}{
+		{"newer with zip is available", "v1.0.0", ghRelease{TagName: "v1.1.0", Assets: []ghAsset{zip}}, true},
+		{"newer but no zip yet is not available", "v1.0.0", ghRelease{TagName: "v1.1.0"}, false},
+		{"same version is not available", "v1.1.0", ghRelease{TagName: "v1.1.0", Assets: []ghAsset{zip}}, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			info := infoFromRelease(tc.current, tc.rel)
+			if info.Available != tc.wantAvailable {
+				t.Errorf("Available = %v, want %v", info.Available, tc.wantAvailable)
+			}
+			if info.LatestVersion != tc.rel.TagName {
+				t.Errorf("LatestVersion = %q, want %q (must be reported even when not installable)", info.LatestVersion, tc.rel.TagName)
+			}
+		})
+	}
+}
+
 // TestPickZipAsset confirms we select the packaged .app .zip (not other release
 // files) and return empty when no zip is attached.
 func TestPickZipAsset(t *testing.T) {

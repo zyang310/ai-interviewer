@@ -89,12 +89,27 @@ func Check(ctx context.Context, currentVersion string) (models.UpdateInfo, error
 		return info, fmt.Errorf("updater: decode response: %w", err)
 	}
 
-	info.LatestVersion = rel.TagName
-	info.ReleaseURL = rel.HTMLURL
-	info.Notes = rel.Body
-	info.DownloadURL = pickZipAsset(rel)
-	info.Available = isNewer(currentVersion, rel.TagName)
-	return info, nil
+	return infoFromRelease(currentVersion, rel), nil
+}
+
+// infoFromRelease maps a GitHub release onto the UpdateInfo the frontend acts
+// on. Available requires BOTH a newer version and a packaged .zip to install:
+// release-please publishes the GitHub Release (tag + changelog) the moment the
+// Release PR merges, but the signed build is attached by release.yml only after
+// notarization — up to a couple of hours later. In that window (or if a build
+// fails and never attaches), prompting would offer an "update" that can only
+// open the release page, where there is nothing to download either. LatestVersion
+// is still reported, so the About pane can say the build is on its way.
+func infoFromRelease(currentVersion string, rel ghRelease) models.UpdateInfo {
+	info := models.UpdateInfo{
+		CurrentVersion: currentVersion,
+		LatestVersion:  rel.TagName,
+		ReleaseURL:     rel.HTMLURL,
+		Notes:          rel.Body,
+		DownloadURL:    pickZipAsset(rel),
+	}
+	info.Available = isNewer(currentVersion, rel.TagName) && info.DownloadURL != ""
+	return info
 }
 
 // isNewer reports whether latest is a valid semantic version strictly greater

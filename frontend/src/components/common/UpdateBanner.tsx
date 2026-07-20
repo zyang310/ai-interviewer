@@ -14,10 +14,11 @@ interface UpdateBannerProps {
 // installs it in place: InstallUpdate downloads the build, verifies it is
 // genuinely signed and notarized, then quits the app so a detached helper can
 // swap the bundle and relaunch it — the window closes and reopens on the new
-// version with no manual drag-to-Applications step. Falls back to opening the
-// release page when there's no packaged asset to install (e.g. a release with
-// no build attached yet). Rendered only on non-overlay idle screens so it never
-// intrudes on the floating interview overlay or an in-progress session.
+// version with no manual drag-to-Applications step. The backend only reports an
+// update as available once its .zip asset exists, so downloadUrl is always set
+// here; the release-page fallback is pure defense. Rendered only on non-overlay
+// idle screens so it never intrudes on the floating interview overlay or an
+// in-progress session.
 export default function UpdateBanner({ update, onDismiss, onError }: UpdateBannerProps) {
   const [installing, setInstalling] = useState(false);
 
