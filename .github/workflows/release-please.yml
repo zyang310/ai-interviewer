@@ -27,6 +27,21 @@ permissions:
   contents: write # create the release commit, tag, and GitHub Release
   pull-requests: write # create/update the standing Release PR
 
+# release-please reads the manifest, decides a version, and writes tags, releases
+# and PR labels — all non-atomically. Two runs overlapping (a push landing near a
+# Release PR merge) can therefore both see the same version as unreleased and both
+# try to publish it, which surfaces as:
+#
+#   ⚠ Duplicate release tag: vX.Y.Z
+#   Error: ... {"resource":"Release","code":"already_exists"}
+#
+# Serialising the workflow removes that window. Unlike build.yml this must NOT
+# cancel in progress: a cancelled run could abandon a release halfway, leaving a
+# tag with no GitHub Release behind it.
+concurrency:
+  group: release-please
+  cancel-in-progress: false
+
 jobs:
   release-please:
     name: Maintain Release PR
