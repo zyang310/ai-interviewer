@@ -198,8 +198,26 @@ func (s *Settings) Update(ctx context.Context, prefs models.Preferences) error {
 // is shown a store flag makes every later check silent — a denial is respected
 // instead of re-prompting each launch, with the Settings pane hint as the only
 // remaining reminder. (ClearAll wipes the flag, so a full reset legitimately
-// asks once again.)
+// asks once again.) Called at startup and after a preferences change.
 func (s *Settings) ApplyHotkey(ctx context.Context) {
+	s.applyHotkey(ctx, true)
+}
+
+// RetryHotkey re-applies the hotkey WITHOUT ever summoning the permission
+// dialog. It exists to pick up an Accessibility grant made while the app was
+// already running — the user enabled Mogi in System Settings and returned to
+// the app — so the global hook starts live instead of only after a relaunch.
+// Because the hook starts at most once, this is a cheap no-op once the hook is
+// already up, and a silent trust re-check (never a prompt) while it is not.
+func (s *Settings) RetryHotkey(ctx context.Context) {
+	s.applyHotkey(ctx, false)
+}
+
+// applyHotkey is the shared core. mayPrompt gates the ask-once Accessibility
+// dialog: only the startup/settings path (ApplyHotkey) may prompt, and only
+// until the store records that the dialog has been shown; the background retry
+// path (RetryHotkey) never prompts.
+func (s *Settings) applyHotkey(ctx context.Context, mayPrompt bool) {
 	prefs, err := s.store.GetPreferences()
 	if err != nil {
 		return
@@ -208,8 +226,12 @@ func (s *Settings) ApplyHotkey(ctx context.Context) {
 	if perr != nil {
 		spec, _ = hotkey.ParseSpec(hotkey.DefaultSpec)
 	}
-	alreadyPrompted, _ := s.store.HotkeyPrompted()
-	if s.hotkey.Apply(ctx, prefs.PushToTalkEnabled, spec, !alreadyPrompted) {
+	allowPrompt := false
+	if mayPrompt {
+		alreadyPrompted, _ := s.store.HotkeyPrompted()
+		allowPrompt = !alreadyPrompted
+	}
+	if s.hotkey.Apply(ctx, prefs.PushToTalkEnabled, spec, allowPrompt) {
 		// Best-effort: a failed write costs one extra prompt on a later launch.
 		_ = s.store.MarkHotkeyPrompted()
 	}

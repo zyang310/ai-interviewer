@@ -131,6 +131,10 @@ func (a *App) EnterOverlayMode() {
 	nativeResetZoom()
 
 	runtime.WindowSetAlwaysOnTop(a.ctx, true)
+	// Always-on-top is only a window level; on macOS it does NOT reach over
+	// another app's full-screen Space. Opt the window into all Spaces so the
+	// overlay actually floats over a full-screen IDE/browser (no-op off macOS).
+	nativeFloatOverFullscreen(true)
 	runtime.WindowSetSize(a.ctx, overlayWidth, overlayBarH)
 	a.positionOverlayTopCenter()
 	a.startOverlayGuard()
@@ -140,6 +144,9 @@ func (a *App) EnterOverlayMode() {
 func (a *App) ExitOverlayMode() {
 	a.stopOverlayGuard()
 	runtime.WindowSetAlwaysOnTop(a.ctx, false)
+	// Drop the all-Spaces / float-over-full-screen behavior the overlay opted
+	// into, so the restored window behaves like an ordinary app window again.
+	nativeFloatOverFullscreen(false)
 	runtime.WindowSetSize(a.ctx, restoreWidth, restoreHeight)
 	runtime.WindowCenter(a.ctx)
 }

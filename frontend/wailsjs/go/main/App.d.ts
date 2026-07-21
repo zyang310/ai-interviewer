@@ -64,6 +64,8 @@ export function QuitApp():Promise<void>;
 
 export function RequestTestCode(arg1:string,arg2:string):Promise<void>;
 
+export function RetryHotkey():Promise<void>;
+
 export function RevealDatabaseFile():Promise<void>;
 
 export function SendMessage(arg1:string):Promise<string>;

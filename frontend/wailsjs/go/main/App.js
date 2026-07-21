@@ -122,6 +122,10 @@ export function RequestTestCode(arg1, arg2) {
   return window['go']['main']['App']['RequestTestCode'](arg1, arg2);
 }
 
+export function RetryHotkey() {
+  return window['go']['main']['App']['RetryHotkey']();
+}
+
 export function RevealDatabaseFile() {
   return window['go']['main']['App']['RevealDatabaseFile']();
 }

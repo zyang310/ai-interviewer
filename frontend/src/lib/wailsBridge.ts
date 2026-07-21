@@ -32,6 +32,7 @@ export {
   PreviewVoice,
   QuitApp,
   RequestTestCode,
+  RetryHotkey,
   RevealDatabaseFile,
   SendMessage,
   SetAPIKey,

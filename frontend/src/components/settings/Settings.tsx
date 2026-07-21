@@ -148,6 +148,19 @@ export default function Settings({
     refreshHotkeyStatus();
   }, []);
 
+  // Re-check the hook status when the window regains focus. App.tsx re-applies
+  // the hotkey on the same event (picking up an Accessibility grant made in
+  // System Settings), so the Accessibility warning here clears without a manual
+  // toggle. The delayed re-read catches the async hookEnabled confirmation.
+  useEffect(() => {
+    const onFocus = () => {
+      refreshHotkeyStatus();
+      setTimeout(refreshHotkeyStatus, 600);
+    };
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, []);
+
   // Fetch the global push-to-talk hook status (best-effort; absent in browser
   // preview). hookEnabled only flips true once the OS confirms the hook started.
   async function refreshHotkeyStatus() {

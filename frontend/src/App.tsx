@@ -20,6 +20,7 @@ import {
   EndSession,
   EnterOverlayMode,
   ExitOverlayMode,
+  RetryHotkey,
   SendMessage,
   SetCaptureRegion,
   SetOverlayExpanded,
@@ -237,6 +238,21 @@ function App() {
       offDown();
       pttBusyRef.current = false;
     };
+  }, [prefs?.pushToTalkEnabled]);
+
+  // The global hook starts at most once, at launch — so an Accessibility grant
+  // made while the app is already running (the user enabled Mogi in System
+  // Settings and clicked back) wouldn't take effect until a relaunch. Re-apply
+  // the hotkey whenever the window regains focus to pick that grant up live.
+  // Silent by design (RetryHotkey never prompts); a no-op once the hook is up,
+  // and harmless in browser preview where the bound call just rejects.
+  useEffect(() => {
+    if (!prefs?.pushToTalkEnabled) return;
+    const onFocus = () => {
+      RetryHotkey().catch(() => {});
+    };
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
   }, [prefs?.pushToTalkEnabled]);
 
   // Managed test-account state can change without user input: the launch-time

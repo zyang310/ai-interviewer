@@ -322,9 +322,18 @@ func (a *App) UpdatePreferences(prefs models.Preferences) error {
 }
 
 // GetHotkeyStatus reports the global push-to-talk hook state so the UI can
-// surface the macOS Input-Monitoring permission hint when it isn't running.
+// surface the macOS Accessibility permission hint when it isn't running.
 func (a *App) GetHotkeyStatus() hotkey.Status {
 	return a.hotkey.Status()
+}
+
+// RetryHotkey re-applies the global hotkey without prompting for permission, so
+// an Accessibility grant made while the app was already running starts the hook
+// live — no relaunch needed. The frontend calls this when the window regains
+// focus (the user returning from System Settings). Safe to call repeatedly: the
+// hook starts at most once, so this is a no-op once it is already up.
+func (a *App) RetryHotkey() {
+	a.settings.RetryHotkey(a.ctx)
 }
 
 // ---------------------------------------------------------------------------
