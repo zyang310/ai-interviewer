@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.14.0](https://github.com/zyang310/mogi/compare/v0.13.0...v0.14.0) (2026-07-21)
+
+
+### Features
+
+* implement live hotkey re-application for macOS Accessibility permissions ([e2772cf](https://github.com/zyang310/mogi/commit/e2772cfbefa1ee0ee0f3b7201e6d77df697aba8a))
+
+
+### Bug Fixes
+
+* drop full-screen overlay handling, guide users to filled windows ([a07f22e](https://github.com/zyang310/mogi/commit/a07f22e75643d0f5b87d1fa30b69dff6ecd4a2e8))
+
 ## [0.13.0](https://github.com/zyang310/mogi/compare/v0.12.2...v0.13.0) (2026-07-20)
 
 
